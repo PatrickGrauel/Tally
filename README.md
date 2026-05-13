@@ -21,6 +21,17 @@ A native macOS calculator built for pilots. A natural-language scratchpad on one
 - Finance scenarios — loan amortization, real estate yield, tip calculator.
 - Document-based — multiple scratchpads, persisted across launches.
 
+## ⚠️ Safety notice — aviation features
+
+**Tally is NOT certified, approved, audited, or operationally validated for flight planning, navigation, or operation of an aircraft.** It is a hobbyist productivity tool. Its aviation features — METAR / TAF / ATIS retrieval, E6B calculations, weight & balance, density altitude, fuel — are provided for **situational awareness and study only**.
+
+- **Weather data is third-party.** METAR / TAF / ATIS come from external APIs (aviationweather.gov, datis.clowd.io, etc.) and may be delayed, incomplete, cached, or unavailable.
+- **Calculations are generic estimates.** E6B, density altitude, fuel, and weight & balance figures are computed from standard atmospheric and aerodynamic models. They do **not** account for your specific aircraft's actual performance, equipment, or condition.
+- **Always cross-check against official sources** — official weather products, NOTAMs, your aircraft's POH/AFM, and certified flight planning systems — before and during every flight.
+- **The Pilot in Command remains solely responsible** for the safe conduct of the flight per applicable regulations (14 CFR § 91 in the U.S., EASA Air OPS / Part-NCO / SERA in the EU, or your operating state's equivalent). Using Tally does not relieve the PIC of any obligation.
+
+See [**DISCLAIMER.md**](DISCLAIMER.md) for the full safety and liability disclaimer. If you are not willing to accept those terms, do not install or use Tally for any aviation-related purpose.
+
 ## Install as a Mac app
 
 Tally is distributed as source. The steps below produce a regular `Tally.app` in `/Applications`, launchable from Spotlight, Launchpad, or the Dock.
