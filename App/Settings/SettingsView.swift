@@ -1,0 +1,149 @@
+import SwiftUI
+import AppKit
+
+struct SettingsView: View {
+    @EnvironmentObject var model: AppModel
+
+    // General
+    @AppStorage("sumi.precision")  private var precision: Int = 14
+    @AppStorage("sumi.appearance") private var appearance: String = "system"
+    @AppStorage("sumi.menuBarOnly") private var menuBarOnly: Bool = false
+    @State private var launchAtLogin: Bool = LaunchAtLogin.isEnabled
+    @AppStorage("sumi.alwaysOnTop") private var alwaysOnTop: Bool = false
+    @State private var showDocs: Bool = false
+
+    // Units (preferences shared across all panes that care)
+    @AppStorage("sumi.aviation.speedUnit")    private var speedUnit: String = "kt"
+    @AppStorage("sumi.aviation.altitudeUnit") private var altitudeUnit: String = "ft"
+    @AppStorage("sumi.aviation.pressureUnit") private var pressureUnit: String = "hPa"
+
+    // Module pane visibility — each toggle hides/shows the corresponding
+    // pane in the top-left dropdown. Defaults match what new users got
+    // before this setting existed, so nothing disappears after upgrade.
+    @AppStorage("sumi.panes.finance")      private var enableFinance      = true
+    @AppStorage("sumi.panes.aviation")     private var enableAviation     = true
+
+    var body: some View {
+        Form {
+            // MARK: General
+            Section("General") {
+                LabeledContent("Precision") {
+                    HStack(spacing: 6) {
+                        TextField("", value: $precision, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 48)
+                            .multilineTextAlignment(.center)
+                        Stepper("", value: $precision, in: 0...14).labelsHidden()
+                        Text("decimal places")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Picker("Appearance", selection: $appearance) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        if !LaunchAtLogin.setEnabled(newValue) {
+                            // Revert UI if the system rejected the change.
+                            launchAtLogin = LaunchAtLogin.isEnabled
+                        }
+                    }
+                Toggle("Always on top", isOn: $alwaysOnTop)
+                Toggle("Menu Bar Only Mode", isOn: $menuBarOnly)
+                    .onChange(of: menuBarOnly) { _, _ in
+                        MenuBarController.shared.applyActivationPolicy()
+                    }
+                Text("Menu Bar Only Mode hides the Dock icon; reopen Sumi by clicking the menu bar icon.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            // MARK: Tools — pane visibility
+            Section {
+                Toggle(Pane.finance.moduleTitle, isOn: $enableFinance)
+                Text(Pane.finance.moduleDescription)
+                    .font(.caption).foregroundStyle(.secondary)
+
+                Toggle(Pane.aviation.moduleTitle, isOn: $enableAviation)
+                Text(Pane.aviation.moduleDescription)
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text("Tools")
+            } footer: {
+                Text("Turn off tools you don't use to keep the top-left menu tidy. Calculator and Timezone are always available.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            // MARK: Units
+            Section("Units") {
+                Picker("Speed",    selection: $speedUnit) {
+                    Text("Knots").tag("kt")
+                    Text("MPH").tag("mph")
+                    Text("km/h").tag("kph")
+                }
+                Picker("Altitude", selection: $altitudeUnit) {
+                    Text("Feet").tag("ft")
+                    Text("Meters").tag("m")
+                }
+                Picker("Pressure", selection: $pressureUnit) {
+                    Text("hPa").tag("hPa")
+                    Text("inHg").tag("inHg")
+                }
+            }
+
+            // MARK: Footer
+            Section {
+                HStack {
+                    Button {
+                        showDocs = true
+                    } label: {
+                        Label("Documentation", systemImage: "book")
+                    }
+                    Button("Send feedback") {
+                        if let url = URL(string: "mailto:feedback@sumi.app?subject=Sumi%20feedback") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    Spacer()
+                    Text("Sumi \(Bundle.main.shortVersion) (\(Bundle.main.buildVersion))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .frame(width: 480, height: 540)
+        // `themedSheet` applies SumiTheme.background AND the user's
+        // light/dark preference. Without it the Settings window ignores
+        // the Appearance picker the user just changed.
+        .themedSheet()
+        .background(WindowLevelApplier(alwaysOnTop: alwaysOnTop))
+        .sheet(isPresented: $showDocs) {
+            DocumentationView()
+        }
+    }
+}
+
+/// Pins the host window to .floating when Always-on-Top is on, matching
+/// the main Sumi window so Settings doesn't end up hidden behind it.
+private struct WindowLevelApplier: NSViewRepresentable {
+    let alwaysOnTop: Bool
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            let desired: NSWindow.Level = alwaysOnTop ? .floating : .normal
+            if window.level != desired { window.level = desired }
+        }
+    }
+}
+
+private extension Bundle {
+    var shortVersion: String {
+        (object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.1"
+    }
+    var buildVersion: String {
+        (object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "1"
+    }
+}

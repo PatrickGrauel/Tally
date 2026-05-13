@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sumi — Navigation reference</title>
+<style>
+  :root {
+    --bg: #1C1C1E;
+    --surface: #262629;
+    --fg: #FFFFFF;
+    --muted: rgba(235,235,245,0.55);
+    --hairline: rgba(235,235,245,0.08);
+    --true: #5AC8FA;
+    --mag: #FF6B6B;
+    --comp: #3DD68C;
+  }
+  html, body { margin:0; padding:0; background: var(--bg); color: var(--fg);
+               font-family: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+               -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 56px 48px 80px; }
+  header { display: flex; align-items: baseline; justify-content: space-between;
+           padding-bottom: 28px; border-bottom: 1px solid var(--hairline); margin-bottom: 32px; }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .meta { font-family: "SF Mono", ui-monospace, Menlo, monospace;
+          font-size: 11px; color: rgba(235,235,245,0.5); }
+
+  .test { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+          border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+          margin-bottom: 32px; }
+  .test > div { padding: 14px 18px; border-right: 1px solid var(--hairline); }
+  .test > div:last-child { border-right: none; }
+  .test .k { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 10px;
+             color: rgba(235,235,245,0.5); letter-spacing: 0.06em; text-transform: uppercase; }
+  .test .v { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 14px; margin-top: 4px; }
+
+  .card { background: var(--surface); border-radius: 14px; padding: 28px 32px;
+          margin-bottom: 28px; }
+  .card .label { font-family: "SF Mono", ui-monospace, Menlo, monospace;
+                 font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+                 color: rgba(235,235,245,0.5); margin-bottom: 16px; }
+  .card svg { width: 100%; height: auto; display: block; }
+
+  .legend { background: var(--surface); border-radius: 14px; padding: 28px 32px;
+            margin-bottom: 28px; }
+  .legend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .legend-group h3 { margin: 0 0 12px; font-size: 11px; font-weight: 600;
+                     letter-spacing: 0.08em; text-transform: uppercase;
+                     color: rgba(235,235,245,0.5); }
+  .legend-row { display: flex; gap: 12px; font-family: "SF Mono", ui-monospace, Menlo, monospace;
+                font-size: 12.5px; line-height: 1.8; }
+  .legend-row .abbr { min-width: 32px; font-weight: 600; }
+  .legend-row .def { color: rgba(235,235,245,0.75); }
+  .legend-row.true .abbr { color: var(--true); }
+  .legend-row.mag  .abbr { color: var(--mag); }
+  .legend-row.comp .abbr { color: var(--comp); }
+  .legend-row.neutral .abbr { color: rgba(235,235,245,0.85); }
+  .legend-corrections { margin-top: 22px; padding-top: 22px;
+                        border-top: 1px solid var(--hairline);
+                        display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
+
+  .notes { background: var(--surface); border-radius: 14px; padding: 32px 36px; }
+  .notes h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+              color: rgba(235,235,245,0.65); margin: 0 0 14px; }
+  .notes p { font-size: 13.5px; line-height: 1.6; color: rgba(235,235,245,0.85);
+             margin: 0 0 12px; max-width: 72ch; }
+  .notes code { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12px;
+                color: var(--fg); background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>Sumi — Navigation reference</h1>
+    <div class="meta">720 × 540 viewBox · dark mode · v2</div>
+  </header>
+
+  <div class="test">
+    <div><div class="k">VAR</div><div class="v">7°E</div></div>
+    <div><div class="k">DEV</div><div class="v">5°E</div></div>
+    <div><div class="k">WCA</div><div class="v">6°R</div></div>
+    <div><div class="k">DA</div><div class="v">6°R</div></div>
+    <div><div class="k">TC · TT</div><div class="v">052° · 064°</div></div>
+  </div>
+
+  <div class="card">
+    <div class="label">A — Base reference</div>
+    <svg id="diagram-a" viewBox="0 0 720 540" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div class="card">
+    <div class="label">B — With wind &amp; aircraft context</div>
+    <svg id="diagram-b" viewBox="0 0 720 540" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div class="legend">
+    <div class="legend-grid">
+      <div class="legend-group">
+        <h3>Course</h3>
+        <div class="legend-row true"><span class="abbr">TC</span><span class="def">True course</span></div>
+        <div class="legend-row mag"><span class="abbr">MC</span><span class="def">Magnetic course</span></div>
+        <div class="legend-row comp"><span class="abbr">CC</span><span class="def">Compass course</span></div>
+      </div>
+      <div class="legend-group">
+        <h3>Heading</h3>
+        <div class="legend-row true"><span class="abbr">TH</span><span class="def">True heading</span></div>
+        <div class="legend-row mag"><span class="abbr">MH</span><span class="def">Magnetic heading</span></div>
+        <div class="legend-row comp"><span class="abbr">CH</span><span class="def">Compass heading</span></div>
+      </div>
+      <div class="legend-group">
+        <h3>Track</h3>
+        <div class="legend-row true"><span class="abbr">TT</span><span class="def">True track</span></div>
+        <div class="legend-row mag"><span class="abbr">MT</span><span class="def">Magnetic track</span></div>
+        <div class="legend-row comp"><span class="abbr">CT</span><span class="def">Compass track</span></div>
+      </div>
+    </div>
+    <div class="legend-corrections">
+      <div class="legend-row neutral"><span class="abbr">VAR</span><span class="def">Variation</span></div>
+      <div class="legend-row neutral"><span class="abbr">DEV</span><span class="def">Deviation</span></div>
+      <div class="legend-row neutral"><span class="abbr">WCA</span><span class="def">Wind correction angle</span></div>
+      <div class="legend-row neutral"><span class="abbr">DA</span><span class="def">Drift angle</span></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h2>Design notes</h2>
+    <p><strong>Layout.</strong> Origin at <code>(110, 475)</code> in a 720×540 viewBox. Six rays fan from the origin: three north references (True 0°, Magnetic 7°, Compass 12°) and three trajectories (Course 52°, Heading 58°, Track 64°). All angles measured clockwise from up. North rays are 420 long, trajectories 470 — so the destination labels (Course / Heading / Track) sit clear of the arc field.</p>
+    <p><strong>Arcs.</strong> Nine arcs in three concentric tiers link each north to each trajectory. Course tier at r=370/345/320; Heading at 290/265/240; Track at 210/185/160. Stroked 1.2pt in the origin-north's color (True <code>#5AC8FA</code>, Magnetic <code>#FF6B6B</code>, Compass <code>#3DD68C</code>) and terminated with a small arrowhead showing CW sweep. A 2.4pt dot at the start pins the arc to its origin-line — the eye reads "this arc swings from here to the arrow".</p>
+    <p><strong>Correction indicators.</strong> Four small arcs near the origin call out the angular gaps a pilot actually computes: VAR (r=85, 0°→7°), DEV (r=120, 7°→12°), WCA (r=85, 52°→58°), DA (r=120, 58°→64°). Stroked 0.9pt in white@70% with a tiny arrowhead; labels sit radially outside in 9.5pt SF Mono.</p>
+    <p><strong>Variant B.</strong> Identical geometry plus two layered additions: a wind barb glyph in the upper-right negative space (cyan staff with three feathers, oriented along the line a 280°@15kt wind would cross the page) and a top-down aircraft silhouette along the Track ray at <code>r ≈ 380</code>, rotated to <strong>Heading</strong> (58°) — not Track. The crab angle between the aircraft's nose and its ground track is the visual definition of <code>DA</code>.</p>
+  </div>
+
+</div>
+
+<script>
+// ===== GEOMETRY =====
+const D = {
+  ox: 110, oy: 475,
+  nLen: 420, tLen: 470,
+  norths: [
+    {key:'T', label:'True',     angle:  0, color:'#5AC8FA'},
+    {key:'M', label:'Magnetic', angle:  7, color:'#FF6B6B'},
+    {key:'C', label:'Compass',  angle: 12, color:'#3DD68C'},
+  ],
+  trajs: [
+    {key:'C', label:'Course',  angle: 52},
+    {key:'H', label:'Heading', angle: 58},
+    {key:'T', label:'Track',   angle: 64},
+  ],
+  // [northKey, trajKey, radius]
+  arcs: [
+    ['T','C', 370], ['M','C', 345], ['C','C', 320],
+    ['T','H', 290], ['M','H', 265], ['C','H', 240],
+    ['T','T', 210], ['M','T', 185], ['C','T', 160],
+  ],
+};
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function polar(r, deg) {
+  const rad = deg * Math.PI / 180;
+  return [D.ox + r * Math.sin(rad), D.oy - r * Math.cos(rad)];
+}
+function el(parent, tag, attrs, text) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  parent.appendChild(e);
+  return e;
+}
+function arrowMarker(defs, id, color, w) {
+  w = w || 6;
+  const m = el(defs, 'marker', {
+    id, viewBox:'0 0 10 10', refX: 9, refY: 5,
+    markerWidth: w, markerHeight: w, orient: 'auto-start-reverse',
+  });
+  el(m, 'path', {d:'M0,0 L10,5 L0,10 Z', fill: color});
+}
+
+function aircraftPath(span) {
+  const s = span / 32;
+  const pts = [
+    [   0, -14*s],   // nose
+    [ 1.5*s, -8*s],
+    [ 1.5*s,  4*s],  // wing root front
+    [14*s,    5*s],  // wing tip front
+    [14*s,    7*s],  // wing tip back
+    [ 1.5*s,  8*s],  // wing root back
+    [ 1.5*s, 12*s],
+    [ 4*s,   13*s],  // tail tip front R
+    [ 4*s,   14*s],  // tail tip back R
+    [-4*s,   14*s],  // tail tip back L
+    [-4*s,   13*s],  // tail tip front L
+    [-1.5*s, 12*s],
+    [-1.5*s,  8*s],
+    [-14*s,   7*s],
+    [-14*s,   5*s],
+    [-1.5*s,  4*s],
+    [-1.5*s, -8*s],
+  ];
+  return 'M ' + pts.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' L ') + ' Z';
+}
+
+function build(svgId, opts) {
+  opts = opts || {};
+  const svg = document.getElementById(svgId);
+  svg.innerHTML = '';
+
+  const Nmap = {}; D.norths.forEach(n => Nmap[n.key] = n);
+  const Tmap = {}; D.trajs.forEach(t => Tmap[t.key] = t);
+
+  // Marker definitions
+  const defs = el(svg, 'defs', {});
+  D.norths.forEach(n => arrowMarker(defs, `arr-${svgId}-${n.key}`, n.color, 7));
+  arrowMarker(defs, `arr-${svgId}-traj`, '#FFFFFF', 7);
+  D.norths.forEach(n => arrowMarker(defs, `arc-${svgId}-${n.key}`, n.color, 4.5));
+  arrowMarker(defs, `arr-${svgId}-mini`, 'rgba(235,235,245,0.7)', 4);
+
+  // Variant B underlay: wind barb (drawn first so it sits behind labels)
+  if (opts.wind) {
+    const bx = 510, by = 92;
+    // wind direction stylised as a diagonal staff with three feathers
+    const len = 70, dx = Math.cos(0.18) * len, dy = Math.sin(0.18) * len;
+    const g = el(svg, 'g', {opacity: 0.85});
+    el(g, 'line', {x1: bx, y1: by, x2: bx + dx, y2: by + dy,
+                   stroke: '#5AC8FA', 'stroke-width': 1.4, 'stroke-linecap': 'round'});
+    for (let i = 0; i < 3; i++) {
+      const t = 0.18 + i * 0.24;
+      const sx = bx + dx * t, sy = by + dy * t;
+      const bX = sx + Math.cos(0.18 - Math.PI*0.42) * 12;
+      const bY = sy + Math.sin(0.18 - Math.PI*0.42) * 12;
+      el(g, 'line', {x1: sx, y1: sy, x2: bX, y2: bY,
+                     stroke: '#5AC8FA', 'stroke-width': 1.4, 'stroke-linecap': 'round'});
+    }
+    el(g, 'text', {
+      x: bx + dx + 10, y: by + dy + 4,
+      fill: '#5AC8FA',
+      'font-family': "'SF Mono', ui-monospace, Menlo, monospace",
+      'font-size': 10, 'font-weight': 600, 'letter-spacing': '0.06em',
+    }, 'WIND · 280°/15');
+  }
+
+  // 1. NORTH lines + staggered single-word labels (legend explains "North")
+  const nAnchors = {T: 'end', M: 'middle', C: 'start'};
+  const nDX      = {T:  -6,   M:  0,        C:  6};
+  D.norths.forEach(n => {
+    const [x2, y2] = polar(D.nLen, n.angle);
+    el(svg, 'line', {
+      x1: D.ox, y1: D.oy, x2, y2,
+      stroke: n.color, 'stroke-width': 1.8,
+      'marker-end': `url(#arr-${svgId}-${n.key})`,
+    });
+    el(svg, 'text', {
+      x: x2 + nDX[n.key], y: y2 - 18, fill: n.color,
+      'font-family': "-apple-system, 'SF Pro Text', system-ui, sans-serif",
+      'font-size': 13, 'font-weight': 600, 'text-anchor': nAnchors[n.key],
+    }, n.label);
+  });
+  // tiny shared "North" tag above the cluster, monochrome
+  el(svg, 'text', {
+    x: 70, y: 18, fill: 'rgba(235,235,245,0.45)',
+    'font-family': "'SF Mono', ui-monospace, Menlo, monospace",
+    'font-size': 9.5, 'font-weight': 500, 'letter-spacing': '0.08em',
+    'text-anchor': 'start', 'text-transform': 'uppercase',
+  }, 'NORTHS');
+
+  // 2. TRAJECTORY lines
+  D.trajs.forEach(t => {
+    const [x2, y2] = polar(D.tLen, t.angle);
+    el(svg, 'line', {
+      x1: D.ox, y1: D.oy, x2, y2,
+      stroke: '#FFFFFF', 'stroke-width': 1.8,
+      'marker-end': `url(#arr-${svgId}-traj)`,
+    });
+    const [lx, ly] = polar(D.tLen + 38, t.angle);
+    el(svg, 'text', {
+      x: lx, y: ly, fill: '#FFFFFF',
+      'font-family': "-apple-system, 'SF Pro Text', system-ui, sans-serif",
+      'font-size': 13, 'font-weight': 600,
+      'text-anchor': 'start', 'dominant-baseline': 'central',
+    }, t.label);
+  });
+
+  // 3. ARCS (north→trajectory)
+  D.arcs.forEach(([nk, tk, r]) => {
+    const N = Nmap[nk], T = Tmap[tk];
+    const [x1, y1] = polar(r, N.angle);
+    const [x2, y2] = polar(r, T.angle);
+    el(svg, 'path', {
+      d: `M ${x1.toFixed(2)},${y1.toFixed(2)} A ${r},${r} 0 0 1 ${x2.toFixed(2)},${y2.toFixed(2)}`,
+      fill: 'none', stroke: N.color, 'stroke-width': 1.3,
+      'marker-end': `url(#arc-${svgId}-${nk})`,
+    });
+    el(svg, 'circle', {cx: x1, cy: y1, r: 2.4, fill: N.color});
+    // label at midpoint, radially outside the arc
+    const midAngle = (N.angle + T.angle) / 2;
+    const [lx, ly] = polar(r + 14, midAngle);
+    el(svg, 'text', {
+      x: lx, y: ly, fill: N.color,
+      'font-family': "'SF Mono', ui-monospace, Menlo, monospace",
+      'font-size': 11, 'font-weight': 600,
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }, nk + tk);
+  });
+
+  // 4. CORRECTION INDICATORS (VAR, DEV, WCA, DA) — labels get a knockout pill
+  const corrections = [
+    {label:'VAR', r: 85,  a1: 0,  a2: 7,  labelR: 108},
+    {label:'DEV', r: 120, a1: 7,  a2: 12, labelR: 142},
+    {label:'WCA', r: 85,  a1: 52, a2: 58, labelR: 108},
+    {label:'DA',  r: 120, a1: 58, a2: 64, labelR: 142},
+  ];
+  corrections.forEach(c => {
+    const [x1, y1] = polar(c.r, c.a1);
+    const [x2, y2] = polar(c.r, c.a2);
+    el(svg, 'path', {
+      d: `M ${x1.toFixed(2)},${y1.toFixed(2)} A ${c.r},${c.r} 0 0 1 ${x2.toFixed(2)},${y2.toFixed(2)}`,
+      fill: 'none', stroke: 'rgba(235,235,245,0.7)', 'stroke-width': 0.9,
+      'marker-end': `url(#arr-${svgId}-mini)`,
+    });
+    const mid = (c.a1 + c.a2) / 2;
+    const [lx, ly] = polar(c.labelR, mid);
+    const w = c.label.length * 6.4 + 8;
+    el(svg, 'rect', {
+      x: lx - w/2, y: ly - 7, width: w, height: 14, rx: 3,
+      fill: '#262629',
+    });
+    el(svg, 'text', {
+      x: lx, y: ly, fill: 'rgba(235,235,245,0.9)',
+      'font-family': "'SF Mono', ui-monospace, Menlo, monospace",
+      'font-size': 9.5, 'font-weight': 600,
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }, c.label);
+  });
+
+  // 5. ORIGIN DOT
+  el(svg, 'circle', {cx: D.ox, cy: D.oy, r: 4.5, fill: '#FFFFFF'});
+
+  // 6. Variant B: aircraft along Track, rotated to Heading (crab angle visible)
+  if (opts.aircraft) {
+    const [ax, ay] = polar(380, 64);  // position along Track
+    // nose direction = Heading angle (58°), so rotate by 58°
+    const g = el(svg, 'g', {
+      transform: `translate(${ax.toFixed(2)} ${ay.toFixed(2)}) rotate(58)`,
+    });
+    el(g, 'path', {
+      d: aircraftPath(34),
+      fill: 'rgba(255,255,255,0.88)',
+      stroke: 'rgba(255,255,255,0.95)',
+      'stroke-width': 0.6,
+      'stroke-linejoin': 'round',
+    });
+  }
+}
+
+build('diagram-a', {});
+build('diagram-b', {wind: true, aircraft: true});
+</script>
+</body>
+</html>

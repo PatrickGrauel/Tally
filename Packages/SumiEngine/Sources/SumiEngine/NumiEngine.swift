@@ -1,0 +1,670 @@
+import Foundation
+import JavaScriptCore
+
+public struct LineResult: Equatable, Sendable {
+    public let line: Int
+    public let raw: String
+    public let value: String?
+    public let kind: Kind
+    /// Optional secondary annotation (e.g. "updated 12 min ago" for METAR
+    /// lines). Rendered alongside the value in smaller, age-aware colour.
+    public let annotation: Annotation?
+
+    public enum Kind: String, Sendable {
+        case empty
+        case header
+        case comment
+        case label
+        case expression
+        case timezone
+        case error
+    }
+
+    public struct Annotation: Equatable, Sendable {
+        public enum Tone: Sendable, Equatable {
+            /// Dim secondary colour. Report is fresher than the fastest
+            /// routine cycle (30 min at busy international stations).
+            case fresh
+            /// Accent (gold/orange). Older than the 30-min cycle but still
+            /// current at hourly-update stations. Treat with caution.
+            case stale
+            /// Red. Older than even the hourly cycle — outdated everywhere
+            /// and unsafe to rely on without a fresh fetch.
+            case outdated
+        }
+        public let label: String
+        public let tone: Tone
+        public init(label: String, tone: Tone) {
+            self.label = label
+            self.tone = tone
+        }
+    }
+
+    public init(line: Int, raw: String, value: String?, kind: Kind, annotation: Annotation? = nil) {
+        self.line = line
+        self.raw = raw
+        self.value = value
+        self.kind = kind
+        self.annotation = annotation
+    }
+}
+
+public enum NumiEngineError: Error, CustomStringConvertible {
+    case bundleResourceMissing
+    case jsContextUnavailable
+    case evaluationFailed(String)
+
+    public var description: String {
+        switch self {
+        case .bundleResourceMissing: return "mathjs.bundle.js missing from module resources"
+        case .jsContextUnavailable: return "JSContext could not be created"
+        case .evaluationFailed(let msg): return "Evaluation failed: \(msg)"
+        }
+    }
+}
+
+public final class NumiEngine {
+    private let context: JSContext
+    private let preprocessor = NumiPreprocessor()
+    private let timezone = TimezoneBridge()
+    private let resolver = CityResolver.shared
+
+    public init() throws {
+        guard let ctx = JSContext() else { throw NumiEngineError.jsContextUnavailable }
+        self.context = ctx
+
+        guard let url = Bundle.module.url(forResource: "mathjs.bundle", withExtension: "js") else {
+            throw NumiEngineError.bundleResourceMissing
+        }
+        let source = try String(contentsOf: url, encoding: .utf8)
+        context.exceptionHandler = { _, exc in
+            if let exc { NSLog("[NumiEngine] JS exception: \(exc)") }
+        }
+        _ = context.evaluateScript(source)
+
+        AviationBridge.register(on: context)
+    }
+
+    /// Posted whenever fresh FX or crypto rates land in the JSContext.
+    /// Views that re-evaluate documents (calculator gutter) should listen
+    /// for this so currency conversions update without the user having
+    /// to type anything. Without the post, the calculator would stay
+    /// on whatever placeholder rates were in place when it first
+    /// evaluated on `.onAppear`.
+    public static let ratesUpdatedNotification = Notification.Name("sumi.engine.ratesUpdated")
+
+    public func applyFX(_ snapshot: FXService.Snapshot) {
+        FXBridge.apply(snapshot, to: context)
+        NotificationCenter.default.post(name: Self.ratesUpdatedNotification, object: nil)
+    }
+
+    public func applyCrypto(_ snapshot: CryptoService.Snapshot) {
+        CryptoBridge.apply(snapshot, to: context)
+        NotificationCenter.default.post(name: Self.ratesUpdatedNotification, object: nil)
+    }
+
+    /// Evaluate a multi-line Numi-style document.
+    ///
+    /// Must run on the main actor: the METAR/TAF cache bridge is
+    /// `@MainActor`-isolated and we use `MainActor.assumeIsolated` to read
+    /// from it synchronously. Without this annotation a background-thread
+    /// caller would trip that assertion and crash.
+    @MainActor
+    public func evaluate(_ source: String) -> [LineResult] {
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var results: [LineResult] = []
+        var previousValues: [String] = []
+
+        // Fresh document = fresh variable scope. Variables declared on earlier
+        // lines (`House = 100k EUR`) flow into later lines (`House * 2`).
+        _ = context.evaluateScript("sumi.resetScope();")
+
+        for (idx, raw) in lines.enumerated() {
+            let trimmed = raw.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                // Blank lines used to clear `previousValues`, which made
+                // `prev` after a blank silently break. Preserve scope so
+                // users can leave spacing between related calculations.
+                results.append(.init(line: idx, raw: raw, value: nil, kind: .empty))
+                continue
+            }
+            if trimmed.hasPrefix("//") {
+                results.append(.init(line: idx, raw: raw, value: nil, kind: .comment))
+                continue
+            }
+            if trimmed.hasPrefix("#") {
+                results.append(.init(line: idx, raw: raw, value: nil, kind: .header))
+                continue
+            }
+
+            if let tzResult = handleTimezoneLine(trimmed) {
+                results.append(.init(line: idx, raw: raw, value: tzResult, kind: .timezone))
+                previousValues.append(tzResult)
+                continue
+            }
+
+            if let wx = handleMetarLine(trimmed) {
+                results.append(.init(line: idx, raw: raw, value: wx.value, kind: .expression,
+                                     annotation: wx.annotation))
+                continue
+            }
+
+            let prep = preprocessor.transform(raw, previousValues: previousValues)
+            if prep.isLabelOnly {
+                results.append(.init(line: idx, raw: raw, value: nil, kind: .label))
+                continue
+            }
+
+            // Ensure any 3-letter currency codes used on this line are
+            // registered as units. Real rates (from FXService) win; this is
+            // a no-op once a real rate is in place.
+            ensureCurrencies(in: prep.rewritten)
+
+            // Escape for embedding inside a single-quoted JS string literal.
+            // Backslash and single-quote are obvious; CR / LF / line- and
+            // paragraph-separator chars are illegal in JS source (pre-ES2019
+            // for U+2028/2029) and cause cryptic "__ERR__" results when
+            // pasted from Windows clipboards or PDFs.
+            let escaped = prep.rewritten
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'",  with: "\\'")
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "\r", with: "\\r")
+                .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+                .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+            let precision = max(2, min(14, UserDefaults.standard.object(forKey: "sumi.precision") as? Int ?? 14))
+            let js = """
+            (() => { try {
+                const v = sumi.evalLine('\(escaped)');
+                return sumi.format(v, \(precision));
+            } catch (e) { return '__ERR__' + e.message; } })()
+            """
+            let jsValue = context.evaluateScript(js)
+            let str = jsValue?.toString() ?? ""
+            if str.hasPrefix("__ERR__") {
+                let errorRaw = String(str.dropFirst("__ERR__".count))
+                let msg = Self.humaniseError(errorRaw)
+                results.append(.init(line: idx, raw: raw, value: msg, kind: .error))
+            } else {
+                results.append(.init(line: idx, raw: raw, value: str, kind: .expression))
+                previousValues.append(str)
+            }
+        }
+
+        return results
+    }
+
+    // MARK: - Timezone phrase recognition
+
+    /// Recognise five Numi-style timezone phrases:
+    ///   "<TZ> time"
+    ///   "Time in <TZ>"
+    ///   "now in <TZ>"
+    ///   "<HH:mm[ am/pm]> <FROM_TZ> in <TO_TZ>"
+    ///   any of the above with a trailing "+ N" / "- N[h|hours]" offset
+    private func handleTimezoneLine(_ line: String) -> String? {
+        // 1. Split off any trailing "+ N hours" / "- 2h" / "+2" offset.
+        let (workingLine, offsetSeconds) = extractTimeOffset(from: line)
+
+        // Conversion form: "X:YY [am|pm] FROM in TO"
+        if let conv = parseConversionForm(workingLine) {
+            return resolveConversion(time: conv.time, from: conv.from, to: conv.to,
+                                     offsetSeconds: offsetSeconds)
+        }
+
+        // Bare time-at-zone: "1430 Zulu", "14:30 Berlin", "2:30 pm HKT"
+        if let (time, tz) = parseTimeAtZone(workingLine) {
+            return resolveTimeAt(time: time, in: tz, offsetSeconds: offsetSeconds)
+        }
+
+        let lowered = workingLine.lowercased()
+        if lowered.hasSuffix(" time") {
+            let id = String(workingLine.dropLast(5))
+            return resolveNow(id: id, offsetSeconds: offsetSeconds)
+        }
+        if lowered.hasPrefix("time in ") {
+            let id = String(workingLine.dropFirst("time in ".count))
+            return resolveNow(id: id, offsetSeconds: offsetSeconds)
+        }
+        if lowered.hasPrefix("now in ") {
+            let id = String(workingLine.dropFirst("now in ".count))
+            return resolveNow(id: id, offsetSeconds: offsetSeconds)
+        }
+        // Bare "now" (with or without offset) → local time
+        if lowered == "now" {
+            return formatLocalNow(offsetSeconds: offsetSeconds)
+        }
+        if isLikelyBareTimezoneQuery(workingLine) {
+            return resolveNow(id: workingLine, offsetSeconds: offsetSeconds)
+        }
+        // Bare offset only: "+ 30min" applied with no anchor falls back to local now.
+        if workingLine.isEmpty && offsetSeconds != 0 {
+            return formatLocalNow(offsetSeconds: offsetSeconds)
+        }
+        return nil
+    }
+
+    /// Format `Date() + offsetSeconds` in the user's local timezone.
+    private func formatLocalNow(offsetSeconds: TimeInterval) -> String {
+        let fmt = DateFormatter()
+        fmt.timeZone = TimeZone.current
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "yyyy-MM-dd HH:mm zzz"
+        return fmt.string(from: Date().addingTimeInterval(offsetSeconds))
+    }
+
+    /// Strip every trailing `+/- N[h|m|s]?` offset off the end of the line
+    /// and accumulate the total. Supports chained additions:
+    ///   "now + 2h + 52min"       → ("now",  2*3600 + 52*60)
+    ///   "1430 Zulu + 2"          → ("1430 Zulu", 7200)
+    ///   "Berlin time - 90 min"   → ("Berlin time", -5400)
+    private func extractTimeOffset(from line: String) -> (String, TimeInterval) {
+        var working = line.trimmingCharacters(in: .whitespaces)
+        var total: TimeInterval = 0
+        while true {
+            let (stripped, seconds, matched) = extractOneOffset(from: working)
+            if !matched { break }
+            total += seconds
+            working = stripped
+        }
+        return (working, total)
+    }
+
+    private func extractOneOffset(from line: String) -> (String, TimeInterval, Bool) {
+        let regex = #"^(.+?)\s*([+\-])\s*(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)?$"#
+        let pattern = try? NSRegularExpression(pattern: regex)
+        let ns = line as NSString
+        guard let result = pattern?.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)),
+              result.numberOfRanges >= 4 else { return (line, 0, false) }
+
+        func group(_ i: Int) -> String? {
+            guard i < result.numberOfRanges else { return nil }
+            let r = result.range(at: i)
+            guard r.location != NSNotFound else { return nil }
+            return ns.substring(with: r)
+        }
+
+        guard let stripped = group(1),
+              let sign = group(2),
+              let valueStr = group(3),
+              let value = Double(valueStr) else { return (line, 0, false) }
+        let unit = group(4) ?? "h"
+        let perUnit: TimeInterval
+        switch unit.lowercased() {
+        case "h", "hr", "hrs", "hour", "hours":       perUnit = 3600
+        case "m", "min", "mins", "minute", "minutes": perUnit = 60
+        case "s", "sec", "secs", "second", "seconds": perUnit = 1
+        default: perUnit = 3600
+        }
+        let signedValue = (sign == "-") ? -value : value
+        return (stripped.trimmingCharacters(in: .whitespaces), signedValue * perUnit, true)
+    }
+
+    private struct Conversion { let time: String; let from: String; let to: String }
+
+    /// Match "<time> <timezone>" with no conversion target. Returns the time
+    /// and the timezone token. The time can be HH:mm, HHmm, or h:mm a.
+    private func parseTimeAtZone(_ line: String) -> (time: String, tz: String)? {
+        let regex = #"^(\d{1,2}(?::\d{2})?(?:\s?[AaPp][Mm])?|\d{4})\s+(.+)$"#
+        guard line.range(of: regex, options: .regularExpression) != nil else { return nil }
+        let pieces = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard let first = pieces.first else { return nil }
+        // Validate as a time token
+        let hasColon = first.contains(":")
+        let hasAMPM = first.range(of: #"[AaPp][Mm]"#, options: .regularExpression) != nil
+        let isMilitary = first.count == 4 && first.allSatisfy(\.isNumber)
+        if !(hasColon || hasAMPM || isMilitary) { return nil }
+        if isMilitary,
+           let hh = Int(first.prefix(2)),
+           let mm = Int(first.suffix(2)),
+           hh > 23 || mm > 59 { return nil }
+        // For "2:30 pm HKT" the time spans 2 tokens (2:30 + pm). Detect that.
+        var timeEnd = 1
+        if pieces.count >= 3 {
+            let second = pieces[1]
+            if second.range(of: #"^[AaPp][Mm]$"#, options: .regularExpression) != nil {
+                timeEnd = 2
+            }
+        }
+        let timeStr = pieces.prefix(timeEnd).joined(separator: " ")
+        let tzStr = pieces.dropFirst(timeEnd).joined(separator: " ")
+        // Only succeed if the TZ resolves — otherwise let the line fall through.
+        guard !tzStr.isEmpty,
+              (CityResolver.shared.cached(for: tzStr) != nil
+               || TimezoneBridge().legacyResolveLocal(tzStr) != nil)
+        else { return nil }
+        return (timeStr, tzStr)
+    }
+
+    private func parseConversionForm(_ line: String) -> Conversion? {
+        // Accept either "HH:mm[ am/pm]" or 4-digit military like "1430".
+        let regex = #"^(\d{1,4}(?::\d{2})?(?:\s?[AaPp][Mm])?)\s+(.+?)\s+in\s+(.+)$"#
+        guard let _ = line.range(of: regex, options: .regularExpression) else { return nil }
+        let pieces = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard let firstWord = pieces.first else { return nil }
+        let firstChunk = pieces.prefix(2).joined(separator: " ")
+        let hasColon = firstChunk.contains(":")
+        let hasAMPM = firstChunk.range(of: #"[AaPp][Mm]"#, options: .regularExpression) != nil
+        // 4-digit military: "1430". Avoid matching things like "100" (3 digits
+        // which could mean a temperature/scalar) or "1" (single digit).
+        let isMilitary = firstWord.count == 4 && firstWord.allSatisfy(\.isNumber)
+        if !hasColon && !hasAMPM && !isMilitary { return nil }
+        // Sanity-check that a 4-digit military token is a valid HHmm value.
+        if isMilitary,
+           let hh = Int(firstWord.prefix(2)),
+           let mm = Int(firstWord.suffix(2)),
+           hh > 23 || mm > 59 {
+            return nil
+        }
+        guard let inIdx = pieces.firstIndex(of: "in"), inIdx >= 2 else { return nil }
+
+        // Walk back from the "in" token: identify which trailing tokens before
+        // "in" form a known timezone/city. Take the longest match.
+        let preTokens = Array(pieces[..<inIdx])
+        var timeTokens: [String] = []
+        var fromTokens: [String] = preTokens
+        for splitAt in 1..<preTokens.count {
+            let candidateFrom = Array(preTokens[splitAt...])
+            let candidateName = candidateFrom.joined(separator: " ")
+            if TimezoneBridge().resolveSync(candidateName) != nil
+                || CityResolver.shared.cached(for: candidateName) != nil {
+                timeTokens = Array(preTokens[..<splitAt])
+                fromTokens = candidateFrom
+                break
+            }
+        }
+        if timeTokens.isEmpty {
+            // Fallback: assume the last token before "in" is the source TZ.
+            timeTokens = Array(preTokens.dropLast())
+            fromTokens = [preTokens.last ?? ""]
+        }
+        let toTokens = Array(pieces[(inIdx + 1)...])
+        return Conversion(
+            time: timeTokens.joined(separator: " "),
+            from: fromTokens.joined(separator: " "),
+            to:   toTokens.joined(separator: " ")
+        )
+    }
+
+    private func isLikelyBareTimezoneQuery(_ line: String) -> Bool {
+        let words = line.split(separator: " ")
+        guard (1...4).contains(words.count) else { return false }
+        if line.rangeOfCharacter(from: .decimalDigits) != nil { return false }
+        if line.rangeOfCharacter(from: CharacterSet(charactersIn: "+-*/=")) != nil { return false }
+        return CityResolver.shared.cached(for: line) != nil
+            || TimezoneBridge().legacyResolveLocal(line) != nil
+    }
+
+    // MARK: - Resolution helpers (sync, with async kick-off on miss)
+
+    private func resolveNow(id raw: String, offsetSeconds: TimeInterval = 0) -> String? {
+        if let out = timezone.nowString(in: raw, offsetSeconds: offsetSeconds) { return decorate(out) }
+        kickOffResolve(raw)
+        return "Resolving \(raw.trimmingCharacters(in: .whitespaces))…"
+    }
+
+    /// Format `time` in `zone`'s timezone, applying any offset, returning a
+    /// short "HH:mm zzz  (canonical)" string.
+    private func resolveTimeAt(time: String, in zone: String,
+                               offsetSeconds: TimeInterval = 0) -> String? {
+        if let out = timezone.convertTimeString(time, from: zone, to: zone,
+                                                offsetSeconds: offsetSeconds) {
+            return decorate(out)
+        }
+        kickOffResolve(zone)
+        return "Resolving \(zone)…"
+    }
+
+    private func resolveConversion(time: String, from: String, to: String,
+                                   offsetSeconds: TimeInterval = 0) -> String? {
+        if let out = timezone.convertTimeString(time, from: from, to: to,
+                                                offsetSeconds: offsetSeconds) {
+            return decorate(out)
+        }
+        kickOffResolve(from)
+        kickOffResolve(to)
+        let need = [from, to]
+            .filter { CityResolver.shared.cached(for: $0) == nil && TimezoneBridge().legacyResolveLocal($0) == nil }
+            .joined(separator: ", ")
+        return "Resolving \(need)…"
+    }
+
+    private func decorate(_ out: TimezoneBridge.Output) -> String {
+        if let canonical = out.canonical {
+            return "\(out.formatted)  (\(canonical))"
+        }
+        return out.formatted
+    }
+
+    // MARK: - METAR / TAF lines in calculator
+
+    /// Detect `METAR XXXX` or `TAF XXXX` lines. Returns the raw weather
+    /// report plus a freshness annotation. On a cache miss, kicks off a
+    /// fetch + returns a "Fetching…" placeholder.
+    private struct MetarLine {
+        let value: String
+        let annotation: LineResult.Annotation?
+    }
+
+    private func handleMetarLine(_ line: String) -> MetarLine? {
+        let pattern = #"^(METAR|TAF|ATIS)\s+([A-Z]{3,4})$"#
+        guard let _ = line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) else {
+            return nil
+        }
+        let parts = line.split(separator: " ", omittingEmptySubsequences: true).map { String($0).uppercased() }
+        guard parts.count == 2 else { return nil }
+        let kind: MetarService.ReportKind
+        switch parts[0] {
+        case "TAF":  kind = .taf
+        case "ATIS": kind = .atis
+        default:     kind = .metar
+        }
+        let icao = parts[1]
+        let bridge = MetarCacheBridge.shared
+        // Always nudge the bridge: it dedupes via a 5-min cooldown so this
+        // is a no-op if the cache is fresh or a refresh was attempted
+        // recently. Without this, a METAR shown once would sit stale until
+        // the user typed something else.
+        MainActor.assumeIsolated { bridge.prefetch(kind: kind, icao: icao) }
+        if let cached = MainActor.assumeIsolated({ bridge.cached(kind: kind, icao: icao) }) {
+            // Pilots care about the *observation* / *issue* time (the Zulu
+            // stamp in the report), not when we happened to fetch it locally.
+            // Parse the DDHHmmZ group out of the raw text and age against
+            // that. Fall back to local fetch time if the timestamp is missing.
+            let referenceTime = Self.observationTime(in: cached.raw) ?? cached.fetchedAt
+            let age = Int(Date().timeIntervalSince(referenceTime))
+
+            let tone = Self.freshnessTone(for: cached.raw, kind: kind, ageSeconds: age)
+            let annotation = LineResult.Annotation(
+                label: "updated \(Self.formatAge(age))",
+                tone: tone
+            )
+            return MetarLine(value: cached.raw, annotation: annotation)
+        }
+        // Cache miss: the prefetch above is already running. Show a placeholder
+        // until the notification fires and the engine re-evaluates.
+        return MetarLine(value: "Fetching \(parts[0]) \(icao)…", annotation: nil)
+    }
+
+    private static func formatAge(_ seconds: Int) -> String {
+        // Negative age = clock skew or report scheduled for the future
+        // (rare TAF case). Clamp to "just now" rather than show a negative.
+        let s = max(0, seconds)
+        if s < 60 { return "just now" }
+        if s < 3600 { return "\(s / 60) min ago" }
+        let hours = s / 3600
+        let mins = (s % 3600) / 60
+        if mins == 0 { return "\(hours) h ago" }
+        return "\(hours) h \(mins) min ago"
+    }
+
+    /// Translate a raw math.js / engine error message into something a
+    /// human can act on. The mathjs strings ("Undefined symbol foo",
+    /// "Parenthesis ) expected (char 9)") are parser-internal; users
+    /// shouldn't see them unmodified in the gutter.
+    public static func humaniseError(_ message: String) -> String {
+        let m = message.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Undefined symbol / unit  → "Unknown unit 'foo'"
+        if let r = m.range(of: #"^Undefined symbol (\S+)"#, options: .regularExpression) {
+            let symbol = String(m[r]).replacingOccurrences(of: "Undefined symbol ", with: "")
+            return "Unknown unit or name '\(symbol)' — check spelling."
+        }
+        if let r = m.range(of: #"^Unit (\S+) does not exist"#, options: .regularExpression) {
+            let unit = String(m[r])
+                .replacingOccurrences(of: "Unit ", with: "")
+                .replacingOccurrences(of: " does not exist", with: "")
+            return "Unknown unit '\(unit)' — check spelling."
+        }
+
+        // Parser shape complaints
+        if m.contains("Parenthesis ) expected") {
+            return "Missing closing parenthesis."
+        }
+        if m.contains("Value expected") || m.contains("Unexpected end of expression") {
+            return "Expression looks incomplete."
+        }
+        if m.hasPrefix("Cannot convert") && m.contains("unit") {
+            return "Can't convert between those units — dimensions don't match."
+        }
+        if m.contains("Division by zero") {
+            return "Division by zero."
+        }
+        if m.contains("Wrong number of arguments") {
+            return "That function got the wrong number of arguments."
+        }
+
+        // Fall through: trim mathjs-internal "(char N)" position suffix
+        // so the gutter doesn't leak parser internals.
+        return m.replacingOccurrences(of: #"\s*\(char \d+\)"#,
+                                      with: "",
+                                      options: .regularExpression)
+    }
+
+    /// Tone thresholds reflect the actual issuance cadence of each report
+    /// kind. Without these, a freshly-issued 24-hour TAF would already
+    /// look "stale" after an hour even though pilots haven't seen a new
+    /// one published yet.
+    ///
+    /// METARs / SPECIs / ATIS:
+    ///   • International airports: ~30 min cadence
+    ///   • FAA airports:           ~60 min cadence
+    ///   • SPECI updates anytime conditions change significantly
+    ///   → fresh ≤ 35 min, stale 35–70 min, outdated > 70 min
+    ///
+    /// TAFs are governed by ICAO Annex 3:
+    ///   • Validity < 12h:   issued every 3 h  (short TAFs)
+    ///   • Validity 12–30h:  issued every 6 h  (standard TAFs)
+    ///   → fresh ≤ issue interval + 30 min, stale up to 2× interval,
+    ///     outdated beyond that.
+    static func freshnessTone(for raw: String,
+                              kind: MetarService.ReportKind,
+                              ageSeconds age: Int) -> LineResult.Annotation.Tone {
+        switch kind {
+        case .taf:
+            // Standard TAF is 24 h validity → issued every 6 h.
+            let validityHours = tafValidityHours(in: raw) ?? 24
+            let issueIntervalSec = validityHours < 12 ? 3 * 3600 : 6 * 3600
+            let freshLimit   = issueIntervalSec + 30 * 60   // +30 min slack
+            let staleLimit   = issueIntervalSec * 2
+            if age < freshLimit { return .fresh }
+            if age < staleLimit { return .stale }
+            return .outdated
+        case .metar, .atis:
+            if age < 35 * 60 { return .fresh }
+            if age < 70 * 60 { return .stale }
+            return .outdated
+        }
+    }
+
+    /// Parse the validity period of a TAF (`DDHH/DDHH`) and return its
+    /// duration in hours. Returns nil if no validity group is present.
+    static func tafValidityHours(in raw: String) -> Int? {
+        let pattern = #"\b(\d{2})(\d{2})/(\d{2})(\d{2})\b"#
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let ns = raw as NSString
+        guard let m = re.firstMatch(in: raw, range: NSRange(location: 0, length: ns.length)),
+              m.numberOfRanges == 5
+        else { return nil }
+        let startDay  = Int(ns.substring(with: m.range(at: 1))) ?? 0
+        let startHour = Int(ns.substring(with: m.range(at: 2))) ?? 0
+        let endDay    = Int(ns.substring(with: m.range(at: 3))) ?? 0
+        let endHour   = Int(ns.substring(with: m.range(at: 4))) ?? 0
+        // Validate. ICAO allows endHour == 24 to mean "end of day".
+        guard (1...31).contains(startDay), (1...31).contains(endDay),
+              (0...23).contains(startHour), (0...24).contains(endHour)
+        else { return nil }
+        let startTotal = startDay * 24 + startHour
+        var endTotal   = endDay * 24 + endHour
+        // Crude month-rollover handling: if the end falls before the start
+        // (different month), shift it forward by ~one month.
+        if endTotal <= startTotal { endTotal += 31 * 24 }
+        return endTotal - startTotal
+    }
+
+    /// Extract the first `DDHHmmZ` Zulu timestamp from a METAR / TAF and
+    /// resolve it to a `Date` in UTC. If the day-of-month is in the future
+    /// relative to today, assume the report rolled over from last month.
+    static func observationTime(in raw: String) -> Date? {
+        let pattern = #"\b(\d{2})(\d{2})(\d{2})Z\b"#
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let ns = raw as NSString
+        guard let m = re.firstMatch(in: raw, range: NSRange(location: 0, length: ns.length))
+        else { return nil }
+        guard let day = Int(ns.substring(with: m.range(at: 1))),
+              let hour = Int(ns.substring(with: m.range(at: 2))),
+              let minute = Int(ns.substring(with: m.range(at: 3))),
+              (1...31).contains(day), (0...23).contains(hour), (0...59).contains(minute)
+        else { return nil }
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let now = Date()
+        var comps = cal.dateComponents([.year, .month, .day], from: now)
+        let today = comps.day ?? day
+        comps.day = day
+        comps.hour = hour
+        comps.minute = minute
+        comps.second = 0
+        // If the stamp's day is later than today's UTC day, the report is
+        // from the previous month. Subtract one month, wrapping at year.
+        if day > today {
+            if let mo = comps.month, mo > 1 {
+                comps.month = mo - 1
+            } else {
+                comps.month = 12
+                comps.year = (comps.year ?? 0) - 1
+            }
+        }
+        return cal.date(from: comps)
+    }
+
+    // MARK: - Lazy currency registration
+
+    /// Extract any 3- or 4-letter uppercase tokens and ask the JS side to
+    /// register a placeholder rate if none is loaded yet. `sumi.ensureCurrency`
+    /// filters against an ISO 4217 allow-list so we don't accidentally turn
+    /// every random uppercase identifier into a currency.
+    private func ensureCurrencies(in line: String) {
+        let pattern = try? NSRegularExpression(pattern: #"\b[A-Z]{3,4}\b"#)
+        let ns = line as NSString
+        guard let matches = pattern?.matches(
+            in: line, range: NSRange(location: 0, length: ns.length)
+        ) else { return }
+
+        var seen = Set<String>()
+        for m in matches {
+            let code = ns.substring(with: m.range)
+            if seen.insert(code).inserted {
+                _ = context.evaluateScript("sumi.ensureCurrency('\(code)');")
+            }
+        }
+    }
+
+    private func kickOffResolve(_ query: String) {
+        guard CityResolver.shared.cached(for: query) == nil else { return }
+        Task.detached {
+            _ = await CityResolver.shared.resolve(query: query)
+        }
+    }
+}

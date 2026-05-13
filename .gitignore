@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Generated project (regenerated from project.yml)
+Sumi.xcodeproj/
+
+# Generated JS bundle (regenerated from Vendor/numi by Scripts/bundle-numi.sh)
+Packages/SumiEngine/Sources/SumiEngine/Resources/numi.bundle.js
+
+# Node (for esbuild bundling)
+node_modules/
+
+# Secrets
+*.env
+*.env.local
+Secrets.local.xcconfig

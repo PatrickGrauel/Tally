@@ -1,0 +1,63 @@
+name: Sumi
+options:
+  bundleIdPrefix: app.sumi
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+  developmentLanguage: en
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.10"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: minimal
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  SumiEngine:
+    path: Packages/SumiEngine
+  SumiAviation:
+    path: Packages/SumiAviation
+
+targets:
+  Sumi:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: App
+        excludes:
+          - "Resources/**/.gitkeep"
+    resources:
+      - path: App/Resources/Assets.xcassets
+    dependencies:
+      - package: SumiEngine
+      - package: SumiAviation
+    info:
+      path: App/Resources/Info.plist
+      properties:
+        CFBundleName: Sumi
+        CFBundleDisplayName: Sumi
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.productivity
+        ITSAppUsesNonExemptEncryption: false
+        NSHumanReadableCopyright: "© 2026 Patrick Grauel"
+    entitlements:
+      path: App/Resources/Sumi.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.files.user-selected.read-write: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.sumi.Sumi
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: App/Resources/Sumi.entitlements
+        ENABLE_HARDENED_RUNTIME: YES

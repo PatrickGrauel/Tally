@@ -1,0 +1,255 @@
+import AppKit
+import SwiftUI
+
+/// Owns the NSStatusItem. Click toggles the main window (Numi-style); right
+/// click shows a small menu. The icon is a hand-drawn template glyph of the
+/// equals-with-heading-bug mark so it adapts to light / dark menu bars.
+@MainActor
+final class MenuBarController: NSObject {
+    static let shared = MenuBarController()
+
+    private var statusItem: NSStatusItem?
+    /// Cached menu so we can re-attach it for right-click then detach.
+    private lazy var contextMenu: NSMenu = makeMenu()
+
+    /// Set by WindowOpenerBridge once the WindowGroup scene has appeared.
+    /// Calling this asks SwiftUI to (re)open the "main" window — needed
+    /// because closing the window via the red X destroys the NSWindow
+    /// and nothing in AppKit can resurrect a SwiftUI WindowGroup window.
+    var openMainWindow: (() -> Void)?
+
+    func install() {
+        guard statusItem == nil else { return }
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = item.button {
+            button.image = Self.makeIcon()
+            button.imagePosition = .imageOnly
+            button.target = self
+            button.action = #selector(handleClick(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.toolTip = "Sumi — click to toggle window, right-click for menu"
+        }
+        self.statusItem = item
+    }
+
+    func uninstall() {
+        if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
+        statusItem = nil
+    }
+
+    // MARK: - Click handling
+
+    @objc private func handleClick(_ sender: NSStatusBarButton) {
+        guard let event = NSApp.currentEvent else { toggleMainWindow(); return }
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if event.type == .rightMouseUp || modifiers.contains(.control) {
+            showMenu(for: sender)
+        } else {
+            toggleMainWindow()
+        }
+    }
+
+    private func showMenu(for button: NSStatusBarButton) {
+        // Rebuild every time so the "Menu Bar Only Mode" checkmark stays
+        // accurate. Pop it up manually rather than attaching to statusItem
+        // (which would also intercept left-clicks).
+        let menu = makeMenu()
+        let location = NSPoint(x: 0, y: button.bounds.height + 4)
+        menu.popUp(positioning: nil, at: location, in: button)
+    }
+
+    private func makeMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Open Sumi", action: #selector(menuOpen), keyEquivalent: "o").target = self
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(withTitle: "Preferences…", action: #selector(menuPreferences), keyEquivalent: ",").target = self
+        let menuBarOnlyItem = NSMenuItem(
+            title: "Menu Bar Only Mode",
+            action: #selector(menuToggleMenuBarOnly),
+            keyEquivalent: ""
+        )
+        menuBarOnlyItem.target = self
+        menuBarOnlyItem.state = isMenuBarOnly() ? .on : .off
+        menu.addItem(menuBarOnlyItem)
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(withTitle: "Quit Sumi", action: #selector(menuQuit), keyEquivalent: "q").target = self
+        return menu
+    }
+
+    // MARK: - Window toggle
+
+    /// Configure the window to (a) appear on the current Space — even if
+    /// that Space is another app in fullscreen — and (b) be reachable from
+    /// any Space without yanking the user between Spaces. `.canJoinAllSpaces`
+    /// and `.moveToActiveSpace` are mutually exclusive per Apple's docs, so
+    /// remove the latter before inserting the former.
+    static func prepareForCrossSpaceSummon(_ window: NSWindow) {
+        window.collectionBehavior.remove(.moveToActiveSpace)
+        window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
+    }
+
+    private func mainWindow() -> NSWindow? {
+        // ContentView sets navigationTitle("") so window.title is empty —
+        // we identify the WindowGroup("Sumi", id: "main") window by its
+        // SwiftUI-assigned identifier instead, falling back to a class /
+        // canBecomeMain filter (excluding Settings, status item, etc.).
+        if let win = NSApp.windows.first(where: { window in
+            (window.identifier?.rawValue ?? "").contains("main")
+                && window.canBecomeMain
+        }) {
+            return win
+        }
+        return NSApp.windows.first { window in
+            let className = String(describing: type(of: window))
+            return !className.contains("MenuBarExtra")
+                && !className.contains("StatusItem")
+                && !className.contains("NSStatusBarWindow")
+                && !className.contains("PopupBackdrop")
+                && !className.contains("Settings")
+                && !className.contains("Preferences")
+                && window.canBecomeMain
+        }
+    }
+
+    /// `isVisible` is true for miniaturized and occluded windows, and
+    /// `NSApp.isActive` is unreliable in accessory mode — combine the
+    /// signals that actually correspond to "user can see pixels."
+    private func mainWindowIsShowing() -> Bool {
+        guard let win = mainWindow(), win.isVisible, !win.isMiniaturized else {
+            return false
+        }
+        return win.occlusionState.contains(.visible)
+    }
+
+    private func toggleMainWindow() {
+        if mainWindowIsShowing() {
+            if NSApp.activationPolicy() == .accessory {
+                // NSApp.hide is a no-op for accessory apps — order out directly.
+                mainWindow()?.orderOut(nil)
+            } else {
+                NSApp.hide(nil)
+            }
+            return
+        }
+
+        // Make the window follow us to whichever Space the user is on.
+        // Without this, macOS switches the *user* to the Space where the
+        // window currently lives (annoying when the menu bar icon is the
+        // only thing they clicked).
+        if let win = mainWindow() {
+            Self.prepareForCrossSpaceSummon(win)
+            if win.isMiniaturized { win.deminiaturize(nil) }
+            NSApp.activate(ignoringOtherApps: true)
+            win.makeKeyAndOrderFront(nil)
+        } else if let open = openMainWindow {
+            // Closed via red X, or accessory-mode warm path.
+            NSApp.activate(ignoringOtherApps: true)
+            open()
+            DispatchQueue.main.async { [weak self] in
+                if let w = self?.mainWindow() {
+                    w.collectionBehavior.insert(.moveToActiveSpace)
+                    w.makeKeyAndOrderFront(nil)
+                }
+            }
+        } else {
+            // Cold accessory-mode path: bridge hasn't installed yet because
+            // the WindowGroup has never been materialized. SwiftUI exposes
+            // File → New Window via `newWindowForTab:`, which creates a
+            // fresh WindowGroup window even with no Dock icon.
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.sendAction(#selector(NSResponder.newWindowForTab(_:)), to: nil, from: nil)
+        }
+    }
+
+    // MARK: - Menu actions
+
+    @objc private func menuOpen() {
+        if let win = mainWindow() {
+            Self.prepareForCrossSpaceSummon(win)
+            if win.isMiniaturized { win.deminiaturize(nil) }
+            NSApp.activate(ignoringOtherApps: true)
+            win.makeKeyAndOrderFront(nil)
+        } else if let open = openMainWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            open()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.sendAction(#selector(NSResponder.newWindowForTab(_:)), to: nil, from: nil)
+        }
+    }
+
+    @objc private func menuPreferences() {
+        NSApp.activate(ignoringOtherApps: true)
+        // macOS 13+ uses a different selector than the legacy one.
+        if NSApp.responds(to: Selector(("showSettingsWindow:"))) {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        } else if NSApp.responds(to: Selector(("showPreferencesWindow:"))) {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
+    }
+
+    @objc private func menuQuit() {
+        NSApp.terminate(nil)
+    }
+
+    @objc private func menuToggleMenuBarOnly() {
+        let new = !isMenuBarOnly()
+        UserDefaults.standard.set(new, forKey: "sumi.menuBarOnly")
+        applyActivationPolicy()
+        contextMenu = makeMenu()  // refresh checkmark
+    }
+
+    // MARK: - Menu-bar-only mode (LSUIElement at runtime)
+
+    func applyActivationPolicy() {
+        if isMenuBarOnly() {
+            NSApp.setActivationPolicy(.accessory)
+        } else {
+            NSApp.setActivationPolicy(.regular)
+        }
+    }
+
+    private func isMenuBarOnly() -> Bool {
+        UserDefaults.standard.bool(forKey: "sumi.menuBarOnly")
+    }
+
+    // MARK: - Icon
+
+    /// Draws the equals + heading bug shape as a 18×18 template image.
+    /// macOS will tint it appropriately for the menu bar style.
+    private static func makeIcon() -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSColor.black.setFill()
+
+            // Two rounded equals bars
+            let barHeight: CGFloat = 3
+            let barCornerRadius: CGFloat = 1.5
+            let barWidth: CGFloat = 12
+            let barX = (rect.width - barWidth) / 2
+
+            let topBarY: CGFloat = 9
+            let bottomBarY: CGFloat = 4
+            NSBezierPath(roundedRect: NSRect(x: barX, y: topBarY,
+                                              width: barWidth, height: barHeight),
+                         xRadius: barCornerRadius, yRadius: barCornerRadius).fill()
+            NSBezierPath(roundedRect: NSRect(x: barX, y: bottomBarY,
+                                              width: barWidth, height: barHeight),
+                         xRadius: barCornerRadius, yRadius: barCornerRadius).fill()
+
+            // Tiny heading-bug triangle above the top bar
+            let bug = NSBezierPath()
+            let cx = rect.width / 2
+            let bugTopY = topBarY + barHeight + 3
+            let bugBottomY = topBarY + barHeight + 0.6
+            bug.move(to: NSPoint(x: cx - 2, y: bugTopY))
+            bug.line(to: NSPoint(x: cx + 2, y: bugTopY))
+            bug.line(to: NSPoint(x: cx,     y: bugBottomY))
+            bug.close()
+            bug.fill()
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+}

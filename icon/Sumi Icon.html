@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sumi — App Icon Concepts</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181b;
+    --surface-2: #1f1f23;
+    --fg: #fff;
+    --muted: rgba(235,235,245,0.55);
+    --hairline: rgba(235,235,245,0.08);
+  }
+  html, body { margin:0; padding:0; background: var(--bg); color: var(--fg);
+               font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+               -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 56px 48px 100px; }
+  header { display: flex; align-items: baseline; justify-content: space-between;
+           border-bottom: 1px solid var(--hairline); padding-bottom: 24px; margin-bottom: 28px; }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+       color: rgba(235,235,245,0.65); margin: 56px 0 20px; }
+  h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+       color: rgba(235,235,245,0.5); margin: 32px 0 12px; }
+  .meta { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px;
+          color: rgba(235,235,245,0.5); }
+  p.lede { color: rgba(235,235,245,0.65); font-size: 14px; line-height: 1.55;
+           max-width: 68ch; margin: 0; }
+  .concepts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; }
+  .concept { background: var(--surface); border-radius: 18px; padding: 24px;
+             display: flex; flex-direction: column; gap: 18px; }
+  .concept-head { display: flex; flex-direction: column; gap: 4px; }
+  .concept-label { font-family: "SF Mono", ui-monospace, Menlo, monospace;
+                   font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+                   color: rgba(235,235,245,0.55); }
+  .concept-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .concept-desc { font-size: 12px; color: rgba(235,235,245,0.55); line-height: 1.45; }
+  .concept canvas.big { width: 100%; aspect-ratio: 1; display: block; }
+  .scales { display: flex; gap: 24px; align-items: flex-end; padding-top: 18px;
+            border-top: 1px solid var(--hairline); }
+  .scale-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .scale-item canvas { display: block; }
+  .scale-item .sz { font-family: "SF Mono", ui-monospace, Menlo, monospace;
+                    font-size: 10px; color: rgba(235,235,245,0.5); }
+  .pick { background: rgba(255,159,15,0.10); border: 1px solid rgba(255,159,15,0.35);
+          color: #FF9F0F; font-family: 'SF Mono', monospace; font-size: 9.5px;
+          padding: 3px 8px; border-radius: 4px; letter-spacing: 0.08em;
+          text-transform: uppercase; align-self: flex-start; }
+  .winner { background: var(--surface); border-radius: 18px; padding: 36px; }
+  .winner-row { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+  .palette-card { display: flex; flex-direction: column; gap: 14px; }
+  .palette-card canvas { width: 100%; aspect-ratio: 1; display: block; }
+  .palette-meta { display: flex; flex-direction: column; gap: 4px; }
+  .dock-section { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--hairline); }
+  .dock {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 22px; backdrop-filter: blur(20px); width: fit-content;
+    margin-top: 12px;
+  }
+  .dock.light { background: rgba(255,255,255,0.55); border-color: rgba(0,0,0,0.06); }
+  .dock-wrap { padding: 32px; border-radius: 14px; }
+  .dock-wrap.dark { background: linear-gradient(135deg, #2a2a30, #18181b); }
+  .dock-wrap.light { background: linear-gradient(135deg, #e8e3d8, #c9c2b3); }
+  .dock canvas, .dock .icon-slot { width: 64px; height: 64px; display: block; }
+  .dock .icon-slot {
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-family: -apple-system, system-ui, sans-serif;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+  }
+  .icon-calc { background: linear-gradient(180deg, #4a4a4f, #2a2a2e); }
+  .icon-num  { background: linear-gradient(180deg, #7fb96a, #4d8a3d); }
+  .icon-stk  { background: #111; }
+  .icon-mail { background: linear-gradient(180deg, #6dc6ff, #2a90e8); }
+  .icon-msg  { background: linear-gradient(180deg, #50e072, #19c34a); }
+  .icon-slot .gl { font-size: 22px; font-weight: 600; }
+  .dock-cap { font-family: "SF Mono", ui-monospace, Menlo, monospace;
+              font-size: 10px; color: rgba(235,235,245,0.5); margin-top: 14px;
+              letter-spacing: 0.05em; }
+  .spot-section { margin-top: 28px; }
+  .spotlight {
+    width: 480px; background: rgba(40,40,45,0.92); backdrop-filter: blur(30px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 6px;
+    margin-top: 12px;
+  }
+  .spotlight-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+                   border-radius: 8px; }
+  .spotlight-row.active { background: rgba(255,255,255,0.08); }
+  .spotlight-row canvas { width: 32px; height: 32px; display: block; }
+  .spotlight-row .name { font-size: 14px; color: #fff; }
+  .spotlight-row .kind { margin-left: auto; font-size: 11px; color: rgba(255,255,255,0.45); }
+  .spotlight-row .gen-icon { width: 32px; height: 32px; border-radius: 7px;
+                              display: flex; align-items: center; justify-content: center;
+                              font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.85); }
+
+  .notes { background: var(--surface); border-radius: 18px; padding: 32px 36px; }
+  .notes p { font-size: 13.5px; line-height: 1.65; color: rgba(235,235,245,0.85);
+             margin: 0 0 14px; max-width: 76ch; }
+  .notes p:last-child { margin-bottom: 0; }
+  .notes code { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12px;
+                background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 3px; }
+  .notes strong { color: #fff; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>Sumi — app icon</h1>
+    <div class="meta">1024×1024 master · macOS Sonoma+ squircle · v1</div>
+  </header>
+
+  <p class="lede">
+    Three concepts in the navy + ember palette, rendered onto Apple's continuous-curvature squircle
+    (superellipse n=5). Each shown at full size and at 128 / 64 / 32 / 16 px to verify the read
+    survives Spotlight. Chosen direction is highlighted; second palette and Dock contexts follow below.
+  </p>
+
+  <h2>Three concepts · 1024 master + scale-down test</h2>
+  <div class="concepts">
+
+    <div class="concept">
+      <div class="concept-head">
+        <div class="concept-label">Concept 1</div>
+        <div class="concept-title">Σ + horizon</div>
+        <div class="concept-desc">Polyline Σ with the apex extending right as a horizon, terminating in a heading-tick.</div>
+        <div class="pick">Chosen</div>
+      </div>
+      <canvas id="c1-big" class="big" width="1024" height="1024"></canvas>
+      <div class="scales">
+        <div class="scale-item"><canvas id="c1-128" width="128" height="128"></canvas><div class="sz">128</div></div>
+        <div class="scale-item"><canvas id="c1-64"  width="64"  height="64" ></canvas><div class="sz">64</div></div>
+        <div class="scale-item"><canvas id="c1-32"  width="32"  height="32" ></canvas><div class="sz">32</div></div>
+        <div class="scale-item"><canvas id="c1-16"  width="16"  height="16" ></canvas><div class="sz">16</div></div>
+      </div>
+    </div>
+
+    <div class="concept">
+      <div class="concept-head">
+        <div class="concept-label">Concept 2</div>
+        <div class="concept-title">= + heading bug</div>
+        <div class="concept-desc">Two clean bars with a small triangular heading-bug index sitting on the upper bar at ~030°.</div>
+      </div>
+      <canvas id="c2-big" class="big" width="1024" height="1024"></canvas>
+      <div class="scales">
+        <div class="scale-item"><canvas id="c2-128" width="128" height="128"></canvas><div class="sz">128</div></div>
+        <div class="scale-item"><canvas id="c2-64"  width="64"  height="64" ></canvas><div class="sz">64</div></div>
+        <div class="scale-item"><canvas id="c2-32"  width="32"  height="32" ></canvas><div class="sz">32</div></div>
+        <div class="scale-item"><canvas id="c2-16"  width="16"  height="16" ></canvas><div class="sz">16</div></div>
+      </div>
+    </div>
+
+    <div class="concept">
+      <div class="concept-head">
+        <div class="concept-label">Concept 3</div>
+        <div class="concept-title">ƒ + compass ring</div>
+        <div class="concept-desc">Italic ƒ inside a thin compass ring with four cardinal ticks — math notation that IS the compass.</div>
+      </div>
+      <canvas id="c3-big" class="big" width="1024" height="1024"></canvas>
+      <div class="scales">
+        <div class="scale-item"><canvas id="c3-128" width="128" height="128"></canvas><div class="sz">128</div></div>
+        <div class="scale-item"><canvas id="c3-64"  width="64"  height="64" ></canvas><div class="sz">64</div></div>
+        <div class="scale-item"><canvas id="c3-32"  width="32"  height="32" ></canvas><div class="sz">32</div></div>
+        <div class="scale-item"><canvas id="c3-16"  width="16"  height="16" ></canvas><div class="sz">16</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <h2>Chosen: Σ + horizon · two palette options</h2>
+  <div class="winner">
+    <div class="winner-row">
+      <div class="palette-card">
+        <canvas id="winner-navy" width="1024" height="1024"></canvas>
+        <div class="palette-meta">
+          <div class="concept-label">Primary · Aviation navy + ember orange</div>
+          <div class="meta">bg #0B1320 → #1A2B47 · glyph #FF9F0F</div>
+        </div>
+      </div>
+      <div class="palette-card">
+        <canvas id="winner-ink" width="1024" height="1024"></canvas>
+        <div class="palette-meta">
+          <div class="concept-label">Alternative · Quiet ink</div>
+          <div class="meta">bg #0E0E10 · glyph #F2EDE3 · hairline at 55%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dock-section">
+      <h3>Dock context · Light mode</h3>
+      <div class="dock-wrap light">
+        <div class="dock light">
+          <div class="icon-slot icon-mail">@</div>
+          <div class="icon-slot icon-num">123</div>
+          <canvas id="dock-light" width="128" height="128"></canvas>
+          <div class="icon-slot icon-calc">=</div>
+          <div class="icon-slot icon-msg">●</div>
+        </div>
+      </div>
+      <div class="dock-cap">Sumi (centre) at 64px Dock size · adjacent slots are abstract placeholders, not Apple stock icons.</div>
+
+      <h3>Dock context · Dark mode</h3>
+      <div class="dock-wrap dark">
+        <div class="dock">
+          <div class="icon-slot icon-mail">@</div>
+          <div class="icon-slot icon-num">123</div>
+          <canvas id="dock-dark" width="128" height="128"></canvas>
+          <div class="icon-slot icon-calc">=</div>
+          <div class="icon-slot icon-msg">●</div>
+        </div>
+      </div>
+
+      <div class="spot-section">
+        <h3>Spotlight result · 32px</h3>
+        <div class="spotlight">
+          <div class="spotlight-row">
+            <div class="gen-icon" style="background: linear-gradient(180deg, #6dc6ff, #2a90e8);">M</div>
+            <span class="name">Mail</span>
+            <span class="kind">Application</span>
+          </div>
+          <div class="spotlight-row active">
+            <canvas id="spot-32" width="32" height="32"></canvas>
+            <span class="name">Sumi</span>
+            <span class="kind">Application</span>
+          </div>
+          <div class="spotlight-row">
+            <div class="gen-icon" style="background: linear-gradient(180deg, #4a4a4f, #2a2a2e);">=</div>
+            <span class="name">Calculator</span>
+            <span class="kind">Application</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="spot-section">
+        <h3>Finder list · 16px</h3>
+        <div class="spotlight" style="width: 360px;">
+          <div class="spotlight-row" style="padding: 4px 12px;">
+            <canvas id="finder-16" width="16" height="16" style="width:16px;height:16px;"></canvas>
+            <span class="name" style="font-size:13px;">Sumi.app</span>
+            <span class="kind">12.3 MB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Design notes</h2>
+  <div class="notes">
+    <p><strong>Squircle.</strong> Continuous-curvature superellipse with <code>n=5</code>, generated as a 256-segment closed path centred at <code>(512, 512)</code>, radius 512. Matches the macOS Sonoma+ icon mask closely. Glyph art sits inside a ~736×736 safe area (~144px inset on each edge), well clear of the corner curves.</p>
+    <p><strong>Σ glyph.</strong> Polyline through <code>(256,254) → (706,254) → (322,512) → (706,770) → (256,770)</code>, stroked at <strong>84px</strong> (≈8.2% of canvas width) with <code>miter</code> joins and <code>miterLimit=10</code>. Bounding box 450×516 — taller than wide (aspect 0.87), the proportion that reads as Σ rather than as a sideways hourglass. The 70° interior angle at the apex produces a ~146px miter spike extending left to x≈176 — that sharp left point is the Σ's defining silhouette and is what survives 16px. Apex at <code>(322, 512)</code>, vertically centred, horizontally biased so the open right side has room for the horizon. Bounding-box centre at x=481, ~31px left of canvas centre — intentional; the rightward horizon visually rebalances.</p>
+    <p><strong>Horizon line.</strong> Stroked from the apex <code>(322, 512)</code> to <code>(870, 512)</code> at 16px, orange @ 72% opacity, round caps. It crosses the Σ's open right side, so it reads as a continuation of the apex outward — not a separate line tacked on. Terminated with a <strong>20×112px rounded vertical bar</strong> at x=860–880 in full-opacity orange. The bar is the "tick that hints at an aircraft silhouette" from the brief, abstracted to a heading-marker pip — no literal plane.</p>
+    <p><strong>Why this wins at 16×16.</strong> Concept 2's heading bug becomes a 1px triangle (0.5px wide at base) — gone. Concept 3's cardinal ticks merge into the ring's stroke and the italic ƒ collapses into a vertical sliver. Σ has no fine detail — four straight segments and one sharp apex spike. At 16×16 the stroke anti-aliases to a 1.4px-wide orange wash that still reads as "Σ on dark"; at 32×32 the horizon starts to appear faintly; from 64×64 up the full mark is present. Graceful degradation, not failure.</p>
+    <p><strong>Pixel-snapping advice.</strong> All ten sizes are rasterised independently at native resolution from the same 1024-coord drawing — no downsampling artefacts. If after build you notice the 16×16 looking too washy in Finder list views, regenerate just that size with stroke 104 and inset the apex to <code>(320, 512)</code> — the small tightening makes the diagonals snap to whole-pixel widths. The 32×32 generally lands clean as-is. The horizon at 16×16 will read as a faint smear rather than a line; that's the intended fall-back.</p>
+    <p><strong>Optical tuning.</strong> No gloss, no inner shadow, no rim light — quiet by design. The background is a flat linear gradient top-to-bottom (#0B1320 → #1A2B47) plus a barely-there radial highlight at <code>cy=0.2 × canvas</code>, white @ 4%, fading to 0 by 70% radius. That single ambient lift gives the icon depth in the Dock without entering glossy-plastic territory.</p>
+  </div>
+
+</div>
+
+<script>
+// ===== SQUIRCLE PATH (superellipse n=5) =====
+function squirclePath(ctx, size, n) {
+  n = n || 5;
+  const r = size / 2, cx = r, cy = r;
+  const steps = 256;
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * Math.PI * 2;
+    const cosT = Math.cos(t), sinT = Math.sin(t);
+    const x = cx + r * Math.sign(cosT) * Math.pow(Math.abs(cosT), 2/n);
+    const y = cy + r * Math.sign(sinT) * Math.pow(Math.abs(sinT), 2/n);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+// ===== PALETTES =====
+const PAL = {
+  navy: {
+    bgTop:'#0B1320', bgBot:'#1A2B47',
+    glyph:'#FF9F0F', glyphSoft:'rgba(255,159,15,0.72)',
+    ringSoft:'rgba(255,159,15,0.45)'
+  },
+  ink: {
+    bgTop:'#0E0E10', bgBot:'#0E0E10',
+    glyph:'#F2EDE3', glyphSoft:'rgba(242,237,227,0.65)',
+    ringSoft:'rgba(242,237,227,0.40)'
+  }
+};
+
+function paintBg(ctx, size, pal) {
+  squirclePath(ctx, size);
+  ctx.save();
+  ctx.clip();
+  if (pal.bgTop === pal.bgBot) {
+    ctx.fillStyle = pal.bgTop;
+  } else {
+    const g = ctx.createLinearGradient(0, 0, 0, size);
+    g.addColorStop(0, pal.bgTop);
+    g.addColorStop(1, pal.bgBot);
+    ctx.fillStyle = g;
+  }
+  ctx.fillRect(0, 0, size, size);
+  // very subtle ambient lift at top
+  const g2 = ctx.createRadialGradient(size/2, size*0.2, 0, size/2, size*0.2, size*0.7);
+  g2.addColorStop(0, 'rgba(255,255,255,0.04)');
+  g2.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, size, size);
+  // caller is still inside save/clip; will call restore()
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+// ===== CONCEPT 1: Σ + HORIZON =====
+// Σ geometry: top (256,254)→(706,254), apex (322,512), bottom (706,770)→(256,770).
+// Aspect 450w × 516t (0.87, taller-than-wide — classic Σ). Stroke 84, miter join.
+// Interior apex angle ≈ 70°, miter spike ≈ 146px left of apex.
+function drawConcept1(ctx, size, pal) {
+  paintBg(ctx, size, pal);
+  const s = size / 1024;
+  ctx.scale(s, s);
+
+  // Horizon line — from apex extending right, drawn under the Σ
+  ctx.strokeStyle = pal.glyphSoft;
+  ctx.lineWidth = 16;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(322, 512);
+  ctx.lineTo(870, 512);
+  ctx.stroke();
+
+  // Right-end tick — vertical heading pip
+  ctx.fillStyle = pal.glyph;
+  roundedRect(ctx, 860, 456, 20, 112, 8);
+  ctx.fill();
+
+  // Σ polyline
+  ctx.strokeStyle = pal.glyph;
+  ctx.lineWidth = 84;
+  ctx.lineJoin = 'miter';
+  ctx.miterLimit = 10;
+  ctx.lineCap = 'square';
+  ctx.beginPath();
+  ctx.moveTo(256, 254);
+  ctx.lineTo(706, 254);
+  ctx.lineTo(322, 512);
+  ctx.lineTo(706, 770);
+  ctx.lineTo(256, 770);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ===== CONCEPT 2: = + HEADING BUG =====
+function drawConcept2(ctx, size, pal) {
+  paintBg(ctx, size, pal);
+  const s = size / 1024;
+  ctx.scale(s, s);
+
+  ctx.fillStyle = pal.glyph;
+
+  const barW = 536, barH = 88, gap = 88;
+  const barX = (1024 - barW) / 2;
+  const topY = 512 - gap/2 - barH;
+  const botY = 512 + gap/2;
+  roundedRect(ctx, barX, topY, barW, barH, 44); ctx.fill();
+  roundedRect(ctx, barX, botY, barW, barH, 44); ctx.fill();
+
+  // Heading bug — tip touching top of upper bar, right of center
+  const tipX = 624, tipY = topY;
+  const bugH = 70, bugW = 84;
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - bugW/2, tipY - bugH);
+  ctx.lineTo(tipX + bugW/2, tipY - bugH);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ===== CONCEPT 3: ƒ + COMPASS RING =====
+function drawConcept3(ctx, size, pal) {
+  paintBg(ctx, size, pal);
+  const s = size / 1024;
+  ctx.scale(s, s);
+
+  // Compass ring
+  ctx.strokeStyle = pal.ringSoft;
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.arc(512, 512, 340, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Cardinal ticks (only show on larger renders where they survive)
+  if (size >= 64) {
+    ctx.strokeStyle = pal.glyph;
+    ctx.lineWidth = 16;
+    ctx.lineCap = 'round';
+    const tickLen = 38;
+    for (const angle of [0, 90, 180, 270]) {
+      const rad = (angle - 90) * Math.PI / 180;
+      const r1 = 340 - tickLen/2;
+      const r2 = 340 + tickLen/2;
+      ctx.beginPath();
+      ctx.moveTo(512 + r1*Math.cos(rad), 512 + r1*Math.sin(rad));
+      ctx.lineTo(512 + r2*Math.cos(rad), 512 + r2*Math.sin(rad));
+      ctx.stroke();
+    }
+  }
+
+  // ƒ glyph
+  ctx.fillStyle = pal.glyph;
+  ctx.font = 'italic 600 580px "Times New Roman", "Times", serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText('ƒ', 512, 528);
+
+  ctx.restore();
+}
+
+// ===== RENDER =====
+function render(id, fn, size, pal) {
+  const c = document.getElementById(id);
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  fn(ctx, size, pal);
+}
+
+// Each concept at all preview sizes
+const map = {
+  c1: drawConcept1,
+  c2: drawConcept2,
+  c3: drawConcept3,
+};
+for (const k of Object.keys(map)) {
+  render(k + '-big', map[k], 1024, PAL.navy);
+  render(k + '-128', map[k], 128, PAL.navy);
+  render(k + '-64',  map[k], 64,  PAL.navy);
+  render(k + '-32',  map[k], 32,  PAL.navy);
+  render(k + '-16',  map[k], 16,  PAL.navy);
+}
+
+// Winner palette variants
+render('winner-navy', drawConcept1, 1024, PAL.navy);
+render('winner-ink',  drawConcept1, 1024, PAL.ink);
+render('dock-light',  drawConcept1, 128,  PAL.navy);
+render('dock-dark',   drawConcept1, 128,  PAL.navy);
+render('spot-32',     drawConcept1, 32,   PAL.navy);
+render('finder-16',   drawConcept1, 16,   PAL.navy);
+</script>
+</body>
+</html>
