@@ -102,6 +102,29 @@ struct MetarView: View {
         }
         .onReceive(clockTickTimer) { _ in clockTick.toggle() }
         .onReceive(dataRefreshTimer) { _ in autoRefreshIfStale() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            disclaimerFooter
+        }
+    }
+
+    /// Persistent footer reminding the pilot that this view is for
+    /// situational awareness only — mirrors what ForeFlight / SkyDemon /
+    /// similar apps display alongside any weather product. Layered as a
+    /// safeAreaInset so the form content scrolls behind it.
+    private var disclaimerFooter: some View {
+        Text("For situational awareness only — not for navigation. Always verify weather against official sources before flight. See DISCLAIMER.md.")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 18)
+            .background(.thinMaterial)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(TallyTheme.divider)
+                    .frame(height: 0.5)
+            }
     }
 
     /// Fired by `dataRefreshTimer` every 5 minutes. Re-fetches METAR / TAF
