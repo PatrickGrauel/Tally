@@ -354,7 +354,7 @@ try {
 } catch (e) { /* ignore */ }
 
 // Calculator-convention logarithms. math.js ships `log(x)` as the natural
-// log and provides `log10`/`log2`, but Sumi's documentation promises the
+// log and provides `log10`/`log2`, but Tally's documentation promises the
 // schoolbook convention: `log(x)` = base-10, `ln(x)` = natural, and the
 // two-arg `log(x, base)` = base-N. Override so the engine matches the docs.
 // Capture the originals first — calling `math.log` from inside the override
