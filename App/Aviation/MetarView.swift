@@ -303,9 +303,23 @@ struct MetarView: View {
             decodedMetar = nil; decodedTaf = nil
             metarRaw = ""; tafRaw = ""
 
-            async let metarEntry = service.metar(for: id)
-            async let tafEntry   = service.taf(for: id)
-            let (m, t) = await (metarEntry, tafEntry)
+            // When the user pressed Refresh (or typed a brand-new ICAO),
+            // bypass the stale-while-revalidate cache and force a real
+            // network fetch via `service.refresh`. The typing path
+            // (immediate == false, debounced) still uses the cache-first
+            // wrappers for snappy feedback. Same fix pattern as
+            // MetarCacheBridge.prefetch.
+            let m: MetarService.Entry?
+            let t: MetarService.Entry?
+            if immediate {
+                async let metarRefresh: MetarService.Entry? = try? await service.refresh(icao: id, kind: .metar)
+                async let tafRefresh:   MetarService.Entry? = try? await service.refresh(icao: id, kind: .taf)
+                (m, t) = await (metarRefresh, tafRefresh)
+            } else {
+                async let metarEntry = service.metar(for: id)
+                async let tafEntry   = service.taf(for: id)
+                (m, t) = await (metarEntry, tafEntry)
+            }
             // If a newer keystroke cancelled this task while we were
             // awaiting the network, drop the result on the floor — without
             // this guard a stale fetch for "KSF" overwrites the UI right

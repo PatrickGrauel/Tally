@@ -131,11 +131,25 @@ public final class MetarCacheBridge {
         let service = self.service
         let task = Task { [weak self] in
             guard let self else { return }
+            // Use `service.refresh(…)` directly rather than the
+            // `service.metar/taf/atis(for:)` convenience wrappers. The
+            // wrappers do stale-while-revalidate: when the underlying
+            // cache is older than 5 min they return the CACHED entry
+            // and silently fire a background refresh. That's the wrong
+            // semantic here — the bridge has its own 5-min cooldown
+            // (already passed above), so reaching this point means we
+            // genuinely want a fresh fetch. The previous wrappers
+            // caused the bridge cache to lock onto stale data for the
+            // rest of the process lifetime (e.g. a 12-hour-old TAF for
+            // EDDM persisting after a new TAF issuance, because the
+            // background refresh only updated MetarService's cache,
+            // never the bridge).
             let serviceEntry: MetarService.Entry?
-            switch kind {
-            case .metar: serviceEntry = await service.metar(for: id)
-            case .taf:   serviceEntry = await service.taf(for: id)
-            case .atis:  serviceEntry = await service.atis(for: id)
+            do {
+                serviceEntry = try await service.refresh(icao: id, kind: kind)
+            } catch {
+                Self.logger.warning("prefetch \(kind.rawValue) \(id) failed: \(error.localizedDescription)")
+                serviceEntry = nil
             }
             // Always clear the in-flight slot, even on cancellation /
             // empty response — leaving a stale entry would block future

@@ -18,6 +18,13 @@ final class MenuBarController: NSObject {
     /// and nothing in AppKit can resurrect a SwiftUI WindowGroup window.
     var openMainWindow: (() -> Void)?
 
+    /// Set by WindowOpenerBridge from a `@Environment(\.openSettings)`
+    /// closure. Using SwiftUI's native action is much more reliable than
+    /// the legacy `showSettingsWindow:` / `showPreferencesWindow:`
+    /// selector dance — those depend on Apple's private responder
+    /// chain hookup that has shifted between macOS releases.
+    var openSettingsAction: (() -> Void)?
+
     func install() {
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -192,11 +199,26 @@ final class MenuBarController: NSObject {
 
     @objc private func menuPreferences() {
         NSApp.activate(ignoringOtherApps: true)
-        // macOS 13+ uses a different selector than the legacy one.
+        // Prefer the SwiftUI-native action that WindowOpenerBridge wired
+        // up. It Just Works across macOS releases. Fall back to the
+        // historical selectors only if the SwiftUI bridge hasn't been
+        // installed yet (early-launch race) — and in that case retry
+        // after the next runloop spin so the openSettings callback has
+        // a chance to register.
+        if let openSettings = openSettingsAction {
+            openSettings()
+            return
+        }
         if NSApp.responds(to: Selector(("showSettingsWindow:"))) {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         } else if NSApp.responds(to: Selector(("showPreferencesWindow:"))) {
             NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        } else {
+            // Final fallback: retry once after the runloop has had a
+            // chance to wire up the SwiftUI bridge.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.openSettingsAction?()
+            }
         }
     }
 

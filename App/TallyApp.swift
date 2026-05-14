@@ -59,11 +59,16 @@ private struct CrossSpaceSummonApplier: NSViewRepresentable {
     }
 }
 
-/// Hands SwiftUI's `openWindow` action to MenuBarController so the
-/// NSObject world can (re)open the "main" WindowGroup window after the
-/// user closes it via the red X (which destroys, not hides, the window).
+/// Hands SwiftUI's `openWindow` and `openSettings` actions to
+/// MenuBarController so the NSObject world can (re)open the "main"
+/// WindowGroup window and the Settings scene reliably across macOS
+/// releases. The historical `showSettingsWindow:` / `showPreferencesWindow:`
+/// selectors aren't always wired into the responder chain when the app
+/// is running in `.accessory` mode, so going via SwiftUI's native
+/// environment actions is much more robust.
 private struct WindowOpenerBridge: View {
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Color.clear
@@ -71,6 +76,9 @@ private struct WindowOpenerBridge: View {
             .onAppear {
                 MenuBarController.shared.openMainWindow = {
                     openWindow(id: "main")
+                }
+                MenuBarController.shared.openSettingsAction = {
+                    openSettings()
                 }
             }
     }
