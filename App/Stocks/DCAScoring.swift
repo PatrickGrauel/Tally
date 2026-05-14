@@ -155,7 +155,48 @@ struct AxisScore: Identifiable {
     let score: Double?
     let headline: String
     let rationale: String
+    /// Per-year time series of the underlying metric the axis chiefly
+    /// keys on (e.g. gross-profit margin for Pricing Power). Used to
+    /// render the inline sparkline + trend chip. nil for unscored axes.
+    let trend: AxisTrend?
     var id: Axis { axis }
+}
+
+/// Five-year metric trend for one axis. Values are chronological,
+/// oldest first, so a left-to-right sparkline reads as "past → present".
+struct AxisTrend {
+    let values: [Double]
+    let years: [Int]
+    /// For the trend chip: which direction the user actually wants the
+    /// metric to move. GPM up = good (true). D/E up = bad (false).
+    let betterIsHigher: Bool
+    /// Per-value formatter for hover / right-edge label, e.g. "61.6%".
+    let format: (Double) -> String
+
+    enum Direction { case improving, stable, deteriorating }
+
+    /// Slope sign over the window, mapped to "is the user happy about
+    /// that direction?". Threshold ±5 % relative change so single-year
+    /// wobbles don't flip the chip.
+    var direction: Direction {
+        guard let first = values.first, let last = values.last,
+              values.count >= 2, first != 0 else { return .stable }
+        let pct = (last - first) / abs(first)
+        let signed = betterIsHigher ? pct : -pct
+        if signed > 0.05  { return .improving }
+        if signed < -0.05 { return .deteriorating }
+        return .stable
+    }
+}
+
+enum ScoreTier { case strong, mixed, weak, na
+
+    static func tier(for score: Double?) -> ScoreTier {
+        guard let s = score else { return .na }
+        if s >= 8 { return .strong }
+        if s >= 5 { return .mixed }
+        return .weak
+    }
 }
 
 enum Axis: String, CaseIterable {
@@ -265,8 +306,14 @@ enum DCAScorer {
         if years.count < 7 {
             rationale += "Based on a \(years.count)-year window; Buffett's 10-year rule cannot be fully applied on the FMP free tier."
         }
+        let trend = AxisTrend(
+            values: gpms.reversed(),
+            years: years.map(\.fiscalYear).reversed(),
+            betterIsHigher: true,
+            format: { String(format: "%.1f%%", $0 * 100) }
+        )
         return AxisScore(axis: .pricingPower, score: scoreClamped,
-                         headline: headline, rationale: rationale)
+                         headline: headline, rationale: rationale, trend: trend)
     }
 
     // MARK: - Axis 2 — Cost Discipline (composite)
@@ -309,8 +356,18 @@ enum DCAScorer {
         if depRatio > 0.20 {
             rationale += "Depreciation is a real and recurring cost — Buffett rejects EBITDA-based reasoning. "
         }
+        // Trend metric: SG&A as % of gross profit per year — the largest
+        // and most variable of the three composite inputs, so it carries
+        // the most information when shown as a sparkline.
+        let sgaSeries = years.map { safeDiv($0.sga, $0.grossProfit) }
+        let trend = AxisTrend(
+            values: sgaSeries.reversed(),
+            years: years.map(\.fiscalYear).reversed(),
+            betterIsHigher: false,
+            format: { String(format: "%.0f%%", $0 * 100) }
+        )
         return AxisScore(axis: .costDiscipline, score: final,
-                         headline: headline, rationale: rationale)
+                         headline: headline, rationale: rationale, trend: trend)
     }
 
     // MARK: - Axis 3 — Earnings Quality
@@ -319,7 +376,8 @@ enum DCAScorer {
         if unprofitable {
             return AxisScore(axis: .earningsQuality, score: nil,
                              headline: "N/A — unprofitable in window",
-                             rationale: "Net income was zero or negative across the available years; earnings-quality scoring is skipped.")
+                             rationale: "Net income was zero or negative across the available years; earnings-quality scoring is skipped.",
+                             trend: nil)
         }
         let netMargin = safeDiv(latest.netIncome, latest.revenue)
         let epsTrend = trendQuality(values: years.map(\.eps).reversed().map { $0 })
@@ -344,8 +402,15 @@ enum DCAScorer {
             rationale += "Net margin below 10% — thin, easily eroded by input-cost shocks. "
         }
         rationale += epsTrend.commentary
+        let netSeries = years.map { safeDiv($0.netIncome, $0.revenue) }
+        let trend = AxisTrend(
+            values: netSeries.reversed(),
+            years: years.map(\.fiscalYear).reversed(),
+            betterIsHigher: true,
+            format: { String(format: "%.1f%%", $0 * 100) }
+        )
         return AxisScore(axis: .earningsQuality, score: total,
-                         headline: headline, rationale: rationale)
+                         headline: headline, rationale: rationale, trend: trend)
     }
 
     // MARK: - Axis 4 — Capital Efficiency (adjusted ROE)
@@ -354,7 +419,8 @@ enum DCAScorer {
         if unprofitable {
             return AxisScore(axis: .capitalEfficiency, score: nil,
                              headline: "N/A — unprofitable in window",
-                             rationale: "ROE is meaningless when earnings are zero or negative; capital-efficiency scoring is skipped.")
+                             rationale: "ROE is meaningless when earnings are zero or negative; capital-efficiency scoring is skipped.",
+                             trend: nil)
         }
         // Adjusted equity = equity + |treasury stock|. Buffett's rule:
         // share buybacks don't make a company *less* capital-efficient.
@@ -362,7 +428,8 @@ enum DCAScorer {
         if adjEquity <= 0 {
             return AxisScore(axis: .capitalEfficiency, score: nil,
                              headline: "N/A — negative or zero adjusted equity",
-                             rationale: "Adjusted shareholders' equity is non-positive — likely heavy buybacks beyond cumulative retained earnings. Scoring uses the other axes only.")
+                             rationale: "Adjusted shareholders' equity is non-positive — likely heavy buybacks beyond cumulative retained earnings. Scoring uses the other axes only.",
+                             trend: nil)
         }
         let adjROE = latest.netIncome / adjEquity
         let dToE = safeDiv(latest.totalLiabilities, adjEquity)
@@ -387,8 +454,19 @@ enum DCAScorer {
         }
         let final = min(10, max(0, score))
         let headline = String(format: "Adj ROE %.1f%%", adjROE * 100)
+        // Per-year adjusted ROE trend.
+        let roeSeries: [Double] = years.map { y in
+            let eq = y.totalEquity + abs(y.treasuryStock)
+            return eq > 0 ? y.netIncome / eq : 0
+        }
+        let trend = AxisTrend(
+            values: roeSeries.reversed(),
+            years: years.map(\.fiscalYear).reversed(),
+            betterIsHigher: true,
+            format: { String(format: "%.1f%%", $0 * 100) }
+        )
         return AxisScore(axis: .capitalEfficiency, score: final,
-                         headline: headline, rationale: rationale)
+                         headline: headline, rationale: rationale, trend: trend)
     }
 
     // MARK: - Axis 5 — Balance Sheet Safety (composite)
@@ -431,8 +509,19 @@ enum DCAScorer {
         }
         var rationale = "Adjusted debt-to-equity uses (equity + treasury stock) as the denominator — same correction as the ROE axis. Buffett's rule: durable-moat companies pay long-term debt off in 3–4 years of earnings. "
         rationale += "Note: the *current ratio* is not used here. Many DCA companies have current ratios under 1 because earning power covers liabilities — penalising that would mis-fire."
+        // Trend metric: D/E across the window. Lower is better.
+        let deSeries: [Double] = years.map { y in
+            let eq = y.totalEquity + abs(y.treasuryStock)
+            return eq > 0 ? y.totalLiabilities / eq : 0
+        }
+        let trend = AxisTrend(
+            values: deSeries.reversed(),
+            years: years.map(\.fiscalYear).reversed(),
+            betterIsHigher: false,
+            format: { String(format: "%.2f", $0) }
+        )
         return AxisScore(axis: .balanceSheet, score: final,
-                         headline: headline, rationale: rationale)
+                         headline: headline, rationale: rationale, trend: trend)
     }
 
     // MARK: - Axis 6 — Capital Allocation (composite)
@@ -483,8 +572,18 @@ enum DCAScorer {
         if buybackTrend == .increasing {
             rationale += "Share count is *rising* — dilution, not buybacks. "
         }
+        // Trend metric: CapEx as % of net earnings each year. Lower = better.
+        let capexSeries: [Double] = years.map { y in
+            y.netIncome > 0 ? y.capex / y.netIncome : 0
+        }
+        let trend = AxisTrend(
+            values: capexSeries.reversed(),
+            years: years.map(\.fiscalYear).reversed(),
+            betterIsHigher: false,
+            format: { String(format: "%.0f%%", $0 * 100) }
+        )
         return AxisScore(axis: .capitalAllocation, score: final,
-                         headline: headline, rationale: rationale)
+                         headline: headline, rationale: rationale, trend: trend)
     }
 
     // MARK: - Shape interpretation

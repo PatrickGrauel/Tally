@@ -15,7 +15,7 @@ struct RadarChart: View {
     var body: some View {
         Canvas { context, size in
             let centre = CGPoint(x: size.width / 2, y: size.height / 2)
-            let radius = min(size.width, size.height) / 2 - 28
+            let radius = min(size.width, size.height) / 2 - 36
             let n = max(axes.count, 1)
             let axisColour = TallyTheme.divider
             let labelColour = TallyTheme.muted
@@ -78,16 +78,26 @@ struct RadarChart: View {
             }
 
             // 5. Axis labels — placed just outside the outer ring, with
-            //    enough padding that descenders don't clip.
+            //    enough padding that descenders don't clip. The label
+            //    carries the score in a monospaced trailing badge so the
+            //    chart reads alone, without cross-referencing the cards
+            //    below.
             for i in 0..<n {
                 let angle = angleFor(i: i, n: n)
-                let r = radius + 18
+                let r = radius + 22
                 let p = CGPoint(x: centre.x + r * cos(angle),
                                 y: centre.y + r * sin(angle))
-                let text = Text(axes[i].axis.short)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(labelColour)
-                context.draw(text, at: p)
+                let scoreText: String = {
+                    if let s = axes[i].score { return " \(Int(s.rounded()))" }
+                    return " —"
+                }()
+                let label = (Text(axes[i].axis.short)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(labelColour))
+                          + (Text(scoreText)
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                .foregroundColor(strokeColour))
+                context.draw(label, at: p)
             }
         }
         .frame(width: side, height: side)

@@ -124,22 +124,40 @@ struct StocksPane: View {
 
     @ViewBuilder
     private func resultsSections(card: DCAScorecard) -> some View {
-        Section(card.companyName) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
+        // Hero verdict — the answer to "is this a DCA company?" lives at
+        // the top, not buried below six cards. Big total score, the shape
+        // one-liner, and the cache-staleness chip if any. Radar drops to
+        // the next section so the verdict is the first thing read.
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(card.symbol)
-                        .font(.system(.title2, design: .monospaced))
+                        .font(.system(.title, design: .monospaced))
                         .foregroundStyle(TallyTheme.accent)
-                    Text("·")
-                        .foregroundStyle(.secondary)
-                    Text(card.windowDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(card.companyName)
+                        .font(.title3)
+                        .foregroundStyle(TallyTheme.text)
                     Spacer()
                     Text("analysed \(card.analysedAt.formatted(date: .numeric, time: .omitted))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("\(Int(card.totalScore.rounded()))")
+                        .font(.system(size: 44, weight: .semibold, design: .rounded))
+                        .foregroundStyle(TallyTheme.accent)
+                    Text("/ \(card.maxScore)")
+                        .font(.system(.title3, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(card.windowDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text(card.shape)
+                    .font(.callout)
+                    .foregroundStyle(TallyTheme.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 if card.stale {
                     HStack(spacing: 6) {
                         StatusBadge(level: .caution)
@@ -155,6 +173,9 @@ struct StocksPane: View {
                     }
                 }
             }
+        }
+
+        Section {
             HStack {
                 Spacer()
                 RadarChart(axes: card.axes)
@@ -167,24 +188,12 @@ struct StocksPane: View {
             ForEach(card.axes) { axis in
                 axisRow(axis)
             }
-            HStack {
-                Text("Overall")
-                    .fontWeight(.semibold)
-                Spacer()
-                Text("\(Int(card.totalScore.rounded()))/\(card.maxScore)")
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(TallyTheme.accent)
-            }
-            Text(card.shape)
-                .font(.callout)
-                .foregroundStyle(TallyTheme.text)
-                .padding(.top, 2)
         }
     }
 
     private func axisRow(_ axis: AxisScore) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(alignment: .center) {
                 Text(axis.axis.rawValue)
                     .fontWeight(.medium)
                 Spacer()
@@ -201,14 +210,22 @@ struct StocksPane: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Text(axis.headline)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(TallyTheme.muted)
-            if !axis.rationale.isEmpty {
-                Text(axis.rationale)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(axis.headline)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(TallyTheme.muted)
+                    if !axis.rationale.isEmpty {
+                        Text(axis.rationale)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+                if let trend = axis.trend {
+                    Sparkline(trend: trend, tier: ScoreTier.tier(for: axis.score))
+                }
             }
         }
         .padding(.vertical, 2)
