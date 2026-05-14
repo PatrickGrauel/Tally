@@ -480,43 +480,85 @@ public final class NumiEngine {
     }
 
     private func handleMetarLine(_ line: String) -> MetarLine? {
-        let pattern = #"^(METAR|TAF|ATIS)\s+([A-Z]{3,4})$"#
-        guard let _ = line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) else {
+        // Single or space-separated multiple ICAOs:
+        //   METAR EDMA
+        //   METAR EDMA EDMO EDDM
+        //   TAF KSFO KLAX KJFK
+        //   ATIS KSFO KORD
+        // 3- or 4-letter codes (4-letter ICAO; 3-letter IATA resolved later
+        // by MetarCacheBridge.cached via AirportCodeMap).
+        let pattern = #"^(METAR|TAF|ATIS)\s+([A-Z]{3,4}(?:\s+[A-Z]{3,4})*)$"#
+        guard line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil else {
             return nil
         }
-        let parts = line.split(separator: " ", omittingEmptySubsequences: true).map { String($0).uppercased() }
-        guard parts.count == 2 else { return nil }
+        let tokens = line.split(separator: " ", omittingEmptySubsequences: true).map { String($0).uppercased() }
+        guard tokens.count >= 2 else { return nil }
+        let kindToken = tokens[0]
+        let icaos = Array(tokens.dropFirst())
         let kind: MetarService.ReportKind
-        switch parts[0] {
+        switch kindToken {
         case "TAF":  kind = .taf
         case "ATIS": kind = .atis
         default:     kind = .metar
         }
-        let icao = parts[1]
         let bridge = MetarCacheBridge.shared
-        // Always nudge the bridge: it dedupes via a 5-min cooldown so this
-        // is a no-op if the cache is fresh or a refresh was attempted
-        // recently. Without this, a METAR shown once would sit stale until
-        // the user typed something else.
-        MainActor.assumeIsolated { bridge.prefetch(kind: kind, icao: icao) }
-        if let cached = MainActor.assumeIsolated({ bridge.cached(kind: kind, icao: icao) }) {
-            // Pilots care about the *observation* / *issue* time (the Zulu
-            // stamp in the report), not when we happened to fetch it locally.
-            // Parse the DDHHmmZ group out of the raw text and age against
-            // that. Fall back to local fetch time if the timestamp is missing.
-            let referenceTime = Self.observationTime(in: cached.raw) ?? cached.fetchedAt
-            let age = Int(Date().timeIntervalSince(referenceTime))
 
-            let tone = Self.freshnessTone(for: cached.raw, kind: kind, ageSeconds: age)
-            let annotation = LineResult.Annotation(
-                label: "updated \(Self.formatAge(age))",
-                tone: tone
-            )
-            return MetarLine(value: cached.raw, annotation: annotation)
+        // Walk each ICAO. For each: nudge the bridge (it dedupes via a
+        // 5-min cooldown so spam is harmless), pull whatever's currently
+        // cached, and accumulate the displayable section.
+        var sections: [String] = []
+        var tones: [LineResult.Annotation.Tone] = []
+        var ages: [Int] = []
+        var pendingCount = 0
+
+        for icao in icaos {
+            MainActor.assumeIsolated { bridge.prefetch(kind: kind, icao: icao) }
+            if let cached = MainActor.assumeIsolated({ bridge.cached(kind: kind, icao: icao) }) {
+                sections.append(cached.raw)
+                // Pilots care about the *observation* / *issue* time (the
+                // Zulu stamp in the report), not when we happened to fetch
+                // it locally. Fall back to fetch time if the stamp is
+                // missing.
+                let referenceTime = Self.observationTime(in: cached.raw) ?? cached.fetchedAt
+                let age = Int(Date().timeIntervalSince(referenceTime))
+                ages.append(age)
+                tones.append(Self.freshnessTone(for: cached.raw, kind: kind, ageSeconds: age))
+            } else {
+                sections.append("Fetching \(kindToken) \(icao)…")
+                pendingCount += 1
+            }
         }
-        // Cache miss: the prefetch above is already running. Show a placeholder
-        // until the notification fires and the engine re-evaluates.
-        return MetarLine(value: "Fetching \(parts[0]) \(icao)…", annotation: nil)
+
+        let value = sections.joined(separator: "\n")
+
+        // Single-station: keep the existing annotation shape — "updated X min ago".
+        if icaos.count == 1 {
+            if let age = ages.first, let tone = tones.first {
+                let annotation = LineResult.Annotation(
+                    label: "updated \(Self.formatAge(age))",
+                    tone: tone
+                )
+                return MetarLine(value: value, annotation: annotation)
+            }
+            // Single-station cache miss falls through to nil annotation.
+            return MetarLine(value: value, annotation: nil)
+        }
+
+        // Multi-station: one annotation describing the BATCH. The colour
+        // is driven by the worst tone across all stations so the pilot
+        // sees "this is stale somewhere" at a glance.
+        let worstTone: LineResult.Annotation.Tone =
+            tones.contains(.outdated) ? .outdated :
+            tones.contains(.stale)    ? .stale    : .fresh
+        let label: String
+        if ages.isEmpty {
+            label = "fetching \(icaos.count) stations…"
+        } else if pendingCount > 0 {
+            label = "\(pendingCount)/\(icaos.count) pending · oldest \(Self.formatAge(ages.max() ?? 0))"
+        } else {
+            label = "\(icaos.count) stations · oldest \(Self.formatAge(ages.max() ?? 0))"
+        }
+        return MetarLine(value: value, annotation: LineResult.Annotation(label: label, tone: worstTone))
     }
 
     private static func formatAge(_ seconds: Int) -> String {

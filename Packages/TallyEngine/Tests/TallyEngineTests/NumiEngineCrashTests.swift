@@ -77,6 +77,60 @@ final class NumiEngineCrashTests: XCTestCase {
         XCTAssertLessThanOrEqual(next.timeIntervalSince(now), 6 * 3600 + 60)
     }
 
+    // MARK: - Multi-station METAR / TAF / ATIS parsing
+
+    func test_metar_singleStation_unchanged() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("METAR EDMA")
+        XCTAssertEqual(r.count, 1)
+        // Pre-fetch: kind is .expression and value is either the
+        // "Fetching…" placeholder or, if the bridge has a prior cache hit,
+        // the raw report. Either way the line should NOT be parsed as a
+        // generic expression error.
+        XCTAssertEqual(r[0].kind, .expression)
+        XCTAssertNotNil(r[0].value)
+    }
+
+    func test_metar_multipleStations_recognised() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("METAR EDMA EDMO EDDM")
+        XCTAssertEqual(r.count, 1)
+        XCTAssertEqual(r[0].kind, .expression)
+        XCTAssertNotNil(r[0].value)
+        // On a fresh launch with no cache, the value is three "Fetching…"
+        // placeholders joined by newlines — verify the multi-line shape.
+        let v = r[0].value ?? ""
+        let lines = v.split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.count, 3, "expected three lines, got: \(v)")
+        XCTAssertTrue(lines.allSatisfy { $0.contains("EDMA") || $0.contains("EDMO") || $0.contains("EDDM") })
+    }
+
+    func test_taf_multipleStations_recognised() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("TAF KSFO KLAX KJFK")
+        XCTAssertEqual(r.count, 1)
+        XCTAssertEqual(r[0].kind, .expression)
+        let v = r[0].value ?? ""
+        let lines = v.split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.count, 3, "expected three TAF lines, got: \(v)")
+    }
+
+    func test_metar_invalidShape_fallsThrough() throws {
+        let engine = try NumiEngine()
+        // Trailing junk that doesn't look like an ICAO (numbers, too long)
+        // must NOT match the multi-station pattern. The shape would
+        // otherwise quietly accept anything alphabetic and start fetching
+        // for it.
+        let r1 = engine.evaluate("METAR EDMA EDDM 123")           // numbers → not ICAO
+        XCTAssertFalse((r1.first?.value ?? "").contains("Fetching METAR EDMA"))
+
+        let r2 = engine.evaluate("METAR EDMA TOOLONG12")          // 8-char token → not ICAO
+        XCTAssertFalse((r2.first?.value ?? "").contains("Fetching METAR EDMA"))
+
+        let r3 = engine.evaluate("METAR EDMA in USD")             // "in USD" tail
+        XCTAssertFalse((r3.first?.value ?? "").contains("Fetching METAR EDMA"))
+    }
+
     func test_nextExpectedIssuance_atis_usesObservationAnchor() {
         let now = Date()
         // Cached observation 2 h ago → next issuance ~ now (60 min after
