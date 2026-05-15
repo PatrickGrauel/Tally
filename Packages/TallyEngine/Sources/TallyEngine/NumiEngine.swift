@@ -179,6 +179,18 @@ public final class NumiEngine {
                 continue
             }
 
+            if let alt = handleAltitudeLine(trimmed) {
+                results.append(.init(line: idx, raw: raw, value: alt.value, kind: .expression,
+                                     annotation: alt.annotation))
+                continue
+            }
+
+            if let brief = handleBriefingLine(trimmed) {
+                results.append(.init(line: idx, raw: raw, value: brief.value, kind: .expression,
+                                     annotation: brief.annotation))
+                continue
+            }
+
             if let dist = Self.handleDistanceLine(trimmed) {
                 results.append(.init(line: idx, raw: raw, value: dist, kind: .expression))
                 continue
@@ -664,6 +676,224 @@ public final class NumiEngine {
             cross = "Xw \(a.crosswindKt)"
         }
         return "expect RWY \(a.designator) · \(head) · \(cross)"
+    }
+
+    // MARK: - Altitude / Briefing
+
+    /// Field elevation in feet for an airport. The bundled `airports.csv`
+    /// was slimmed and doesn't carry an `elevation_ft` column, so we
+    /// derive it from the highest runway-end elevation in `runways.csv`
+    /// — that matches the published field elevation convention (highest
+    /// usable point of the landing area) within ~1 ft for the airports
+    /// we've spot-checked (EDMA, EDDM, KJFK, KSFO).
+    static func fieldElevationFt(forICAO icao: String) -> Int? {
+        let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
+        let runways = RunwayDatabase.shared.runways(forICAO: canonical)
+        let ends = runways.flatMap { [$0.leElevationFt, $0.heElevationFt] }.compactMap { $0 }
+        return ends.max()
+    }
+
+    /// Recognise `ALT EDMA` / `ALTITUDE EDMA EDDM …` lines and return
+    /// field elevation + pressure altitude + density altitude for each
+    /// station, derived from the cached METAR's QNH and OAT. Returns
+    /// `nil` if the line doesn't match the altitude pattern.
+    private func handleAltitudeLine(_ line: String) -> MetarLine? {
+        let pattern = #"^(ALT|ALTITUDE)\s+([A-Z]{3,4}(?:\s+[A-Z]{3,4})*)$"#
+        guard line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil else {
+            return nil
+        }
+        let tokens = line.split(separator: " ", omittingEmptySubsequences: true).map { String($0).uppercased() }
+        let icaos = Array(tokens.dropFirst())
+        let bridge = MetarCacheBridge.shared
+
+        var sections: [String] = []
+        var tones: [LineResult.Annotation.Tone] = []
+        var ages: [Int] = []
+
+        for icao in icaos {
+            // Nudge the METAR cache so PA/DA can use live conditions
+            // next time the user retypes (or on the next 60 s tick).
+            MainActor.assumeIsolated { bridge.prefetch(kind: .metar, icao: icao) }
+            let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
+            guard let elevation = Self.fieldElevationFt(forICAO: canonical) else {
+                sections.append("\(canonical): no runway data — elevation unknown")
+                continue
+            }
+            let cached = MainActor.assumeIsolated { bridge.cached(kind: .metar, icao: canonical) }
+            let section = Self.formatAirportAltitudes(
+                icao: canonical, elevationFt: elevation, metarRaw: cached?.raw
+            )
+            sections.append(section)
+            if let cached {
+                let reference = Self.observationTime(in: cached.raw) ?? cached.fetchedAt
+                let age = Int(Date().timeIntervalSince(reference))
+                ages.append(age)
+                tones.append(Self.freshnessTone(for: cached.raw, kind: .metar, ageSeconds: age))
+            }
+        }
+
+        let value = sections.joined(separator: "\n")
+        let annotation: LineResult.Annotation?
+        if ages.isEmpty {
+            // No METAR data for any station — PA/DA fall back to ISA
+            // standard (effectively equal to elevation) and we say so.
+            annotation = LineResult.Annotation(label: "no METAR · ISA standard", tone: .stale)
+        } else {
+            let worstTone: LineResult.Annotation.Tone =
+                tones.contains(.outdated) ? .outdated :
+                tones.contains(.stale)    ? .stale    : .fresh
+            let label = ages.count == 1
+                ? "METAR \(Self.formatAge(ages[0])) old"
+                : "METAR oldest \(Self.formatAge(ages.max() ?? 0))"
+            annotation = LineResult.Annotation(label: label, tone: worstTone)
+        }
+        return MetarLine(value: value, annotation: annotation)
+    }
+
+    /// Format one airport's altitude section. `metarRaw == nil` means we
+    /// fall back to ISA standard atmosphere (1013.25 hPa, 15 °C) — PA/DA
+    /// collapse to elevation in that case and we flag it inline.
+    private static func formatAirportAltitudes(icao: String,
+                                                elevationFt elev: Int,
+                                                metarRaw: String?) -> String {
+        guard let raw = metarRaw else {
+            return "\(icao)  elev \(elev) ft · PA/DA need METAR"
+        }
+        let decoded = MetarParser.parse(raw)
+        guard let altHPa = decoded.altimeter?.hPa,
+              let oat = decoded.temperatureC
+        else {
+            // METAR present but missing altimeter or temperature — can't
+            // compute PA/DA reliably. Show elevation only.
+            return "\(icao)  elev \(elev) ft · PA/DA need METAR"
+        }
+        let pa = Atmosphere.pressureAltitudeFt(
+            indicatedAltitudeFt: Double(elev), altimeterHPa: altHPa
+        )
+        let da = Atmosphere.densityAltitudeFt(
+            pressureAltitudeFt: pa, oatC: oat
+        )
+        return "\(icao)  elev \(elev) ft · PA \(Int(pa.rounded())) ft · DA \(Int(da.rounded())) ft"
+    }
+
+    /// Recognise `BRIEFING EDMA` / `BRIEF EDMA EDDM …` lines and return
+    /// a stacked METAR / TAF / RWY / ALT block per station. Reuses the
+    /// existing handlers so each component carries the same data and
+    /// freshness semantics it does in isolation; the briefing's
+    /// annotation surfaces the worst freshness tone across the
+    /// underlying METAR + TAF.
+    private func handleBriefingLine(_ line: String) -> MetarLine? {
+        let pattern = #"^(BRIEF|BRIEFING)\s+([A-Z]{3,4}(?:\s+[A-Z]{3,4})*)$"#
+        guard line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil else {
+            return nil
+        }
+        let tokens = line.split(separator: " ", omittingEmptySubsequences: true).map { String($0).uppercased() }
+        let icaos = Array(tokens.dropFirst())
+
+        var blocks: [String] = []
+        var tones: [LineResult.Annotation.Tone] = []
+        var ages: [Int] = []
+
+        for icao in icaos {
+            let metarLine = handleMetarLine("METAR \(icao)")
+            let tafLine   = handleMetarLine("TAF \(icao)")
+            let rwyText   = Self.briefingRunwaySummary(forICAO: icao)
+            let altText   = Self.briefingAltitudeSummary(forICAO: icao)
+
+            var block = ""
+            if let m = metarLine {
+                block += m.value
+                if let a = m.annotation {
+                    block += "\n            METAR \(a.label)"
+                    tones.append(a.tone)
+                }
+            }
+            if let t = tafLine {
+                if !block.isEmpty { block += "\n\n" }
+                block += t.value
+                if let a = t.annotation {
+                    block += "\n            TAF \(a.label)"
+                    tones.append(a.tone)
+                }
+            }
+            if let r = rwyText {
+                if !block.isEmpty { block += "\n\n" }
+                block += r
+            }
+            if !block.isEmpty { block += "\n\n" }
+            block += altText
+            blocks.append(block)
+
+            // Track METAR age for the overall annotation. TAFs have
+            // their own age semantics so we don't conflate.
+            if let cached = MainActor.assumeIsolated({
+                MetarCacheBridge.shared.cached(kind: .metar, icao: icao)
+            }) {
+                let reference = Self.observationTime(in: cached.raw) ?? cached.fetchedAt
+                ages.append(Int(Date().timeIntervalSince(reference)))
+            }
+        }
+
+        let value = blocks.joined(separator: "\n\n———\n\n")
+        let worstTone: LineResult.Annotation.Tone =
+            tones.contains(.outdated) ? .outdated :
+            tones.contains(.stale)    ? .stale    : .fresh
+        let label: String
+        if let oldest = ages.max() {
+            label = "briefing · METAR \(Self.formatAge(oldest)) old"
+        } else {
+            label = "briefing · awaiting data"
+        }
+        return MetarLine(value: value, annotation: LineResult.Annotation(label: label, tone: worstTone))
+    }
+
+    /// One-line runway summary for a briefing. Lists every runway with
+    /// its physical length × surface, marks the wind-favoured end (if
+    /// any) inline. Returns nil if the airport has no runway data.
+    private static func briefingRunwaySummary(forICAO icao: String) -> String? {
+        let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
+        let runways = RunwayDatabase.shared.runways(forICAO: canonical)
+        guard !runways.isEmpty else { return nil }
+
+        // Identify the wind-favoured end (if METAR has usable wind).
+        var favouredDesignator: String? = nil
+        if let cached = MainActor.assumeIsolated({
+            MetarCacheBridge.shared.cached(kind: .metar, icao: canonical)
+        }) {
+            let decoded = MetarParser.parse(cached.raw)
+            if let advice = RunwayWindAdvisor.advise(metar: decoded, runways: runways) {
+                favouredDesignator = advice.designator
+            }
+        }
+
+        let parts: [String] = runways.map { r in
+            let len = r.lengthFt ?? 0
+            let surf = r.surface ?? ""
+            let pair = "\(r.leIdent)/\(r.heIdent)"
+            var s = len > 0 ? "\(pair) (\(len) ft \(surf))" : pair
+            if let f = favouredDesignator, f == r.leIdent || f == r.heIdent {
+                s += " ★"
+            }
+            return s
+        }
+        return "RWY \(canonical) " + parts.joined(separator: " · ")
+            + (favouredDesignator.map { " — \($0) favoured" } ?? "")
+    }
+
+    /// One-line altitude summary for a briefing. Same data as
+    /// `handleAltitudeLine`, formatted for inline composition.
+    private static func briefingAltitudeSummary(forICAO icao: String) -> String {
+        let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
+        guard let elev = fieldElevationFt(forICAO: canonical) else {
+            return "ALT \(canonical) elevation unknown"
+        }
+        let cached = MainActor.assumeIsolated {
+            MetarCacheBridge.shared.cached(kind: .metar, icao: canonical)
+        }
+        let summary = formatAirportAltitudes(
+            icao: canonical, elevationFt: elev, metarRaw: cached?.raw
+        )
+        return "ALT " + summary
     }
 
     // MARK: - Sun events

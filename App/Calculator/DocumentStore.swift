@@ -93,7 +93,10 @@ final class DocumentStore: ObservableObject {
             # Aviation — for the pilots in the room
             METAR EDDM         // Munich, live
             TAF KSFO           // San Francisco's forecast
-            // Type any ICAO code. ATIS works too.
+            ATIS KJFK          // FAA D-ATIS where published
+            altitude EDDM      // elevation · pressure alt · density alt
+            briefing EDMA      // METAR + TAF + runways + altitude, stacked
+            // Type any ICAO code. Multiple at once works too: METAR EDDM EDMO.
 
             // ⌘N for a new scratchpad. ⌘L to see all of them.
             // This doc is yours — edit it, delete it, ignore it. We won't mind.

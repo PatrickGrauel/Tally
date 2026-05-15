@@ -759,6 +759,73 @@ final class NumiEngineTests: XCTestCase {
                       "expected a result in USD, got: \(r)")
     }
 
+    // MARK: - Altitude / Briefing
+    //
+    // `altitude EDMA` produces field elevation + PA + DA derived from
+    // the cached METAR. Without a cached METAR (which is the common
+    // case in unit tests, since the bridge starts cold), the fallback
+    // path returns elevation only with a "PA/DA need METAR" note.
+    // `briefing EDMA` composes METAR + TAF + RWY + ALT.
+
+    func testAltitudeLineRecognised() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("altitude EDMA").first?.value ?? ""
+        XCTAssertTrue(r.contains("EDMA"),
+                      "altitude output must reference the queried ICAO")
+        XCTAssertTrue(r.contains("elev"),
+                      "altitude output must include the field elevation, got: \(r)")
+        // EDMA's published field elevation is 1516 ft. We derive from the
+        // bundled runway data which should match within a few feet.
+        XCTAssertTrue(r.range(of: #"elev 15\d{2} ft"#, options: .regularExpression) != nil,
+                      "expected EDMA elevation in 1500–1599 ft range, got: \(r)")
+    }
+
+    func testAltitudeLineIsCaseInsensitive() throws {
+        let engine = try NumiEngine()
+        let lower = engine.evaluate("altitude edma").first?.value ?? ""
+        let upper = engine.evaluate("ALTITUDE EDMA").first?.value ?? ""
+        let abbrev = engine.evaluate("alt EDMA").first?.value ?? ""
+        XCTAssertEqual(lower, upper,
+                       "altitude pattern must accept lowercase + uppercase identically")
+        XCTAssertEqual(abbrev, upper,
+                       "alt and altitude must be interchangeable keywords")
+    }
+
+    func testAltitudeMultiStation() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("altitude EDMA EDDM").first?.value ?? ""
+        XCTAssertTrue(r.contains("EDMA"), "multi-station output must include first ICAO")
+        XCTAssertTrue(r.contains("EDDM"), "multi-station output must include second ICAO")
+    }
+
+    func testAltitudeUnknownAirport() throws {
+        let engine = try NumiEngine()
+        // ZZZZ has no runway data in the bundled CSV → no derivable elevation.
+        let r = engine.evaluate("altitude ZZZZ").first?.value ?? ""
+        XCTAssertTrue(r.localizedCaseInsensitiveContains("unknown") ||
+                      r.localizedCaseInsensitiveContains("no runway"),
+                      "altitude for an unknown ICAO should report missing data, got: \(r)")
+    }
+
+    func testBriefingLineRecognised() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("briefing EDMA").first?.value ?? ""
+        XCTAssertFalse(r.isEmpty, "briefing line must produce output")
+        // The block always contains the ALT section; METAR/TAF may be
+        // 'Fetching…' placeholders until the network responds.
+        XCTAssertTrue(r.contains("ALT EDMA"),
+                      "briefing block must include the ALT section, got: \(r)")
+    }
+
+    func testBriefingAbbreviated() throws {
+        let engine = try NumiEngine()
+        // `brief` and `briefing` both work.
+        let full   = engine.evaluate("briefing EDMA").first?.value ?? ""
+        let short  = engine.evaluate("brief EDMA").first?.value ?? ""
+        XCTAssertEqual(full, short,
+                       "brief and briefing must produce equivalent output")
+    }
+
     // MARK: - User variables: case-insensitive
     //
     // The shared eval scope is wrapped in a Proxy that lowercases keys so
