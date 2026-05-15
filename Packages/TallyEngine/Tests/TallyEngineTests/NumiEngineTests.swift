@@ -826,6 +826,62 @@ final class NumiEngineTests: XCTestCase {
                        "brief and briefing must produce equivalent output")
     }
 
+    // MARK: - Stock quotes (live)
+    //
+    // The engine handler recognises STOCK / QUOTE / PRICE lines, kicks
+    // a prefetch off the QuoteCacheBridge, and surfaces whatever is in
+    // the cache right now (or a "Fetching…" placeholder). These tests
+    // exercise the recognition path; they don't hit FMP.
+
+    func testStockLineRecognised() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("stock AAPL").first?.value ?? ""
+        XCTAssertFalse(r.isEmpty,
+                       "stock line must produce some output (fetching placeholder is fine)")
+        // Without a registered API-key provider, the bridge will record
+        // a `missingAPIKey` error eventually — but in the synchronous
+        // test path the bridge is asked before the async fetch errors,
+        // so the placeholder is what's visible.
+        XCTAssertTrue(r.contains("AAPL"),
+                      "output must reference the symbol the user typed, got: \(r)")
+    }
+
+    func testStockLineIsCaseInsensitive() throws {
+        let engine = try NumiEngine()
+        let lower = engine.evaluate("stock aapl").first?.value ?? ""
+        let upper = engine.evaluate("STOCK AAPL").first?.value ?? ""
+        XCTAssertEqual(lower, upper,
+                       "stock keyword must accept any case for both verb and symbol")
+    }
+
+    func testStockKeywordAliases() throws {
+        // STOCK, QUOTE, PRICE all expand to the same handler.
+        let engine = try NumiEngine()
+        let stock = engine.evaluate("stock AAPL").first?.value ?? ""
+        let quote = engine.evaluate("quote AAPL").first?.value ?? ""
+        let price = engine.evaluate("price AAPL").first?.value ?? ""
+        XCTAssertEqual(stock, quote, "stock/quote keywords must be equivalent")
+        XCTAssertEqual(stock, price, "stock/price keywords must be equivalent")
+    }
+
+    func testStockMultiSymbol() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("stock AAPL MSFT").first?.value ?? ""
+        XCTAssertTrue(r.contains("AAPL"), "multi-symbol output must include first symbol")
+        XCTAssertTrue(r.contains("MSFT"), "multi-symbol output must include second symbol")
+    }
+
+    func testStockLineIgnoresMalformedSymbols() throws {
+        // 6-letter token isn't a valid ticker shape (1–5 letters); the
+        // line shouldn't match the stock pattern, so the engine falls
+        // through to math evaluation and produces no stock-shaped
+        // output for it.
+        let engine = try NumiEngine()
+        let result = engine.evaluate("stock TOOLONG").first?.value ?? ""
+        XCTAssertFalse(result.contains("$"),
+                       "6-letter token must not be treated as a ticker; got: \(result)")
+    }
+
     // MARK: - User variables: case-insensitive
     //
     // The shared eval scope is wrapped in a Proxy that lowercases keys so

@@ -120,6 +120,19 @@ final class AppModel: ObservableObject {
         // Touch the singleton to start NWPathMonitor on launch even if
         // bootstrapLiveData is delayed (e.g. SwiftUI .task latency).
         _ = Reachability.shared
+
+        // Hand the FMP API key to the engine's stock-quote service.
+        // The engine never reads the Keychain directly; the App layer
+        // owns secrets and exposes them through a closure so the
+        // service can read the current value at fetch time. That way
+        // pasting a new key in the manage popover doesn't require
+        // restarting the app.
+        Task { [weak self] in
+            await QuoteService.shared.setAPIKeyProvider {
+                KeychainStorage.get("tally.stocks.fmpApiKey")
+            }
+            _ = self
+        }
         // On reconnect: kick a fresh FX/crypto fetch + refresh active
         // METAR/TAF/ATIS stations. This is what closes the 5-min worst-
         // case stall after coming back online.

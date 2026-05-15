@@ -191,6 +191,12 @@ public final class NumiEngine {
                 continue
             }
 
+            if let stock = handleStockLine(trimmed) {
+                results.append(.init(line: idx, raw: raw, value: stock.value, kind: .expression,
+                                     annotation: stock.annotation))
+                continue
+            }
+
             if let dist = Self.handleDistanceLine(trimmed) {
                 results.append(.init(line: idx, raw: raw, value: dist, kind: .expression))
                 continue
@@ -900,6 +906,101 @@ public final class NumiEngine {
             icao: canonical, elevationFt: elev, metarRaw: cached?.raw
         )
         return "ALT " + summary
+    }
+
+    // MARK: - Stock quotes
+
+    /// Recognise `STOCK AAPL` / `QUOTE AAPL MSFT` / `PRICE GOOGL` lines
+    /// and render the latest live price (USD) per symbol with a
+    /// day-change percentage and a freshness annotation. Returns nil if
+    /// the line doesn't match the pattern. Symbols are 1–5 uppercase
+    /// letters (real exchange tickers; `BRK.B` and similar dotted forms
+    /// aren't supported on the free FMP tier so they're left out of the
+    /// pattern intentionally).
+    private func handleStockLine(_ line: String) -> MetarLine? {
+        let pattern = #"^(STOCK|QUOTE|PRICE)\s+([A-Z]{1,5}(?:\s+[A-Z]{1,5})*)$"#
+        guard line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil else {
+            return nil
+        }
+        let tokens = line.split(separator: " ", omittingEmptySubsequences: true).map { String($0).uppercased() }
+        let symbols = Array(tokens.dropFirst())
+        let bridge = QuoteCacheBridge.shared
+
+        var sections: [String] = []
+        var ages: [Int] = []
+        var anyMissingKey = false
+
+        for sym in symbols {
+            // Nudge the cache (idempotent — service-side cooldown
+            // dedupes; in-flight set prevents concurrent dispatch).
+            MainActor.assumeIsolated { bridge.prefetch(symbol: sym) }
+
+            if let cached = MainActor.assumeIsolated({ bridge.cached(symbol: sym) }) {
+                sections.append(Self.formatQuote(cached))
+                ages.append(Int(Date().timeIntervalSince(cached.fetchedAt)))
+            } else if let err = MainActor.assumeIsolated({ bridge.lastError(for: sym) }) {
+                sections.append(Self.formatQuoteError(symbol: sym, error: err))
+                if err == .missingAPIKey { anyMissingKey = true }
+            } else {
+                sections.append("Fetching \(sym)…")
+            }
+        }
+
+        let value = sections.joined(separator: "\n")
+        let annotation: LineResult.Annotation?
+        if anyMissingKey {
+            annotation = LineResult.Annotation(
+                label: "needs FMP key in Settings → Stocks",
+                tone: .outdated
+            )
+        } else if let oldest = ages.max() {
+            let tone: LineResult.Annotation.Tone =
+                oldest < 5 * 60  ? .fresh
+              : oldest < 30 * 60 ? .stale
+              :                    .outdated
+            annotation = LineResult.Annotation(
+                label: ages.count == 1
+                    ? "updated \(Self.formatAge(oldest))"
+                    : "oldest \(Self.formatAge(oldest))",
+                tone: tone
+            )
+        } else {
+            annotation = nil
+        }
+        return MetarLine(value: value, annotation: annotation)
+    }
+
+    /// One-line quote: ticker, USD price, signed day-change percentage
+    /// (or absolute USD if the percentage can't be computed without a
+    /// previous close — FMP's `quote-short` only ships the absolute
+    /// change, so we derive % from price - change).
+    private static func formatQuote(_ q: QuoteCacheBridge.Entry) -> String {
+        let priceStr = String(format: "$%.2f", q.priceUSD)
+        guard let change = q.changeUSD else {
+            return "\(q.symbol)  \(priceStr)"
+        }
+        let previousClose = q.priceUSD - change
+        let changeStr: String
+        if abs(previousClose) > 0.001 {
+            let pct = (change / previousClose) * 100.0
+            let sign = pct >= 0 ? "+" : ""
+            changeStr = String(format: "%@%.2f%%", sign, pct)
+        } else {
+            // Degenerate previous close — show absolute USD change.
+            let sign = change >= 0 ? "+" : ""
+            changeStr = String(format: "%@$%.2f", sign, change)
+        }
+        return "\(q.symbol)  \(priceStr)  \(changeStr) today"
+    }
+
+    private static func formatQuoteError(symbol: String,
+                                          error: QuoteCacheBridge.LastError) -> String {
+        switch error {
+        case .missingAPIKey:    return "\(symbol): paste your FMP key in Settings → Stocks"
+        case .symbolNotCovered: return "\(symbol): not in your FMP data plan"
+        case .rateLimited:      return "\(symbol): FMP daily limit reached"
+        case .transient:        return "\(symbol): temporarily unavailable"
+        }
     }
 
     // MARK: - Sun events

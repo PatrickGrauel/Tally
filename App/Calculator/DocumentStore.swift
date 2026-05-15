@@ -66,6 +66,7 @@ final class DocumentStore: ObservableObject {
             # Money (live rates, refreshed in the background)
             100 EUR in USD
             1 BTC in USD
+            stock AAPL          // needs your FMP key in Settings → Stocks
             // Yes, even when BTC does the thing it does.
 
             # Time zones — for calling people in inconvenient hemispheres

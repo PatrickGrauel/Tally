@@ -59,6 +59,13 @@ struct CalculatorPane: View {
         .onReceive(NotificationCenter.default.publisher(for: MetarCacheBridge.notificationName)) { _ in
             evaluate()
         }
+        // Stock quotes ride the same re-eval pattern: bridge fires this
+        // notification when a fetched quote (or an error like "not in
+        // your data plan") lands, the pane re-evaluates and the gutter
+        // updates inline without the user having to type again.
+        .onReceive(NotificationCenter.default.publisher(for: QuoteCacheBridge.notificationName)) { _ in
+            evaluate()
+        }
         // FX or crypto rates just landed in the JSContext — re-evaluate so
         // currency conversions stop showing the offline placeholder.
         // Without this the user sees `100 EUR + 25 USD = 125 USD` (1:1)
