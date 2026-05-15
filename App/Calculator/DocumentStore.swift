@@ -90,6 +90,11 @@ final class DocumentStore: ObservableObject {
             rent * 12
             // Spoiler: a lot.
 
+            # Aviation — for the pilots in the room
+            METAR EDDM         // Munich, live
+            TAF KSFO           // San Francisco's forecast
+            // Type any ICAO code. ATIS works too.
+
             // ⌘N for a new scratchpad. ⌘L to see all of them.
             // This doc is yours — edit it, delete it, ignore it. We won't mind.
             """)

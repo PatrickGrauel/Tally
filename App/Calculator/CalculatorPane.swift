@@ -15,6 +15,11 @@ struct CalculatorPane: View {
     /// below that line so its left-column row height matches the gutter's
     /// (multi-line) right-column row height. Driven by `RowHeightsKey`.
     @State private var rowExtraHeights: [Int: CGFloat] = [:]
+    /// Editor scroll position (vertical offset in points). The gutter
+    /// mirrors this so each result stays aligned with its source line
+    /// even when the user scrolls a long document. The editor is the
+    /// single source of truth — the gutter becomes a passive viewport.
+    @State private var editorScrollY: CGFloat = 0
 
     /// Drives a periodic re-evaluation so live data (METAR/TAF freshness
     /// labels, current-time timezone results, FX rates) refreshes on its
@@ -40,7 +45,8 @@ struct CalculatorPane: View {
                             get: { documents.selected.content },
                             set: { documents.updateSelectedContent($0) }
                         ),
-                        lineExtraHeights: rowExtraHeights
+                        lineExtraHeights: rowExtraHeights,
+                        scrollY: $editorScrollY
                     )
                     .frame(minWidth: 320)
                     .background(TallyTheme.background)
@@ -76,27 +82,35 @@ struct CalculatorPane: View {
     }
 
     private var resultsPane: some View {
-        ScrollView {
-            VStack(alignment: .trailing, spacing: 0) {
-                ForEach(results, id: \.line) { r in
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text(valueAttributed(r))
+        // The gutter no longer scrolls itself. The inner column keeps
+        // its natural intrinsic size and is shifted up by the editor's
+        // scroll position via `.offset(y:)` — purely visual, no layout
+        // disturbance. The outer frame defines the visible viewport
+        // and clip mask, so anything offset off the top gets clipped.
+        // Result: one source of truth (the editor), and the gutter
+        // tracks it row-for-row.
+        VStack(alignment: .trailing, spacing: 0) {
+            ForEach(results, id: \.line) { r in
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(valueAttributed(r))
+                        .textSelection(.enabled)
+                    if let ann = annotationAttributed(r) {
+                        Text(ann)
                             .textSelection(.enabled)
-                        if let ann = annotationAttributed(r) {
-                            Text(ann)
-                                .textSelection(.enabled)
-                        }
                     }
-                    .frame(maxWidth: .infinity, minHeight: lineHeight, alignment: .trailing)
-                    .background(rowHeightProbe(for: r.line))
                 }
+                .frame(maxWidth: .infinity, minHeight: lineHeight, alignment: .trailing)
+                .background(rowHeightProbe(for: r.line))
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 44)
         }
-        .frame(minWidth: 240)
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 44)
+        .offset(y: -editorScrollY)
+        .frame(minWidth: 240, maxWidth: .infinity,
+               maxHeight: .infinity, alignment: .topTrailing)
         .background(TallyTheme.background)
+        .clipped()
         .onPreferenceChange(RowHeightsKey.self) { heights in
             // Convert each row's *rendered* height into the extra
             // vertical space we need below the matching editor line.
@@ -348,6 +362,10 @@ private struct AutocompletingEditor: NSViewRepresentable {
     /// storage so the editor's left column matches the gutter's row
     /// heights — even when a METAR/TAF result wraps to many lines.
     var lineExtraHeights: [Int: CGFloat] = [:]
+    /// One-way write of the editor's vertical scroll position. The
+    /// CalculatorPane reads this to offset the gutter so both columns
+    /// stay aligned during scroll.
+    @Binding var scrollY: CGFloat
 
     func makeNSView(context: Context) -> NSScrollView {
         let tv = AutocompletingTextView()
@@ -388,6 +406,7 @@ private struct AutocompletingEditor: NSViewRepresentable {
         scroll.backgroundColor = NSColor(TallyTheme.background)
 
         context.coordinator.textView = tv
+        context.coordinator.installScrollObserver(on: scroll)
         return scroll
     }
 
@@ -428,13 +447,44 @@ private struct AutocompletingEditor: NSViewRepresentable {
         storage.endEditing()
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text, scrollY: $scrollY) }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         let text: Binding<String>
+        let scrollY: Binding<CGFloat>
         weak var textView: AutocompletingTextView?
+        private var scrollObserver: NSObjectProtocol?
 
-        init(text: Binding<String>) { self.text = text }
+        init(text: Binding<String>, scrollY: Binding<CGFloat>) {
+            self.text = text
+            self.scrollY = scrollY
+        }
+
+        deinit {
+            if let obs = scrollObserver {
+                NotificationCenter.default.removeObserver(obs)
+            }
+        }
+
+        /// Hook NSClipView's bounds-changed signal — every scroll
+        /// (mouse wheel, trackpad, arrow keys that pull the cursor
+        /// out of view) updates the content view's bounds, which
+        /// we mirror back into SwiftUI so the gutter can follow.
+        func installScrollObserver(on scroll: NSScrollView) {
+            let clip = scroll.contentView
+            clip.postsBoundsChangedNotifications = true
+            scrollObserver = NotificationCenter.default.addObserver(
+                forName: NSView.boundsDidChangeNotification,
+                object: clip,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                let y = clip.bounds.origin.y
+                if abs(self.scrollY.wrappedValue - y) > 0.5 {
+                    self.scrollY.wrappedValue = y
+                }
+            }
+        }
 
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? AutocompletingTextView else { return }
