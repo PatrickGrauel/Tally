@@ -67,6 +67,93 @@ public actor MetarService {
     public func taf(for icao: String)   async -> Entry? { await fetch(icao: icao, kind: .taf) }
     public func atis(for icao: String)  async -> Entry? { await fetch(icao: icao, kind: .atis) }
 
+    // MARK: - Bulk bbox fetch (map pane)
+
+    /// One station's worth of structured METAR data, as returned by the
+    /// bbox endpoint. `fltCat` is aviationweather.gov's pre-computed
+    /// VFR / MVFR / IFR / LIFR classification — we trust it rather than
+    /// re-deriving from ceiling + visibility, because the upstream rule
+    /// matches what every other US weather product uses and pilots
+    /// expect colour parity across tools.
+    public struct BBoxStation: Sendable, Equatable {
+        public enum FltCat: String, Sendable {
+            case vfr  = "VFR"
+            case mvfr = "MVFR"
+            case ifr  = "IFR"
+            case lifr = "LIFR"
+            case unknown
+        }
+        public let icao: String
+        public let lat: Double
+        public let lon: Double
+        public let raw: String
+        public let fltCat: FltCat
+        public let observedAt: Date?
+    }
+
+    /// Fetch every METAR-reporting station inside the given bounding box
+    /// in a single call. The aviationweather.gov endpoint caps responses
+    /// at a couple hundred stations per box; the caller is responsible
+    /// for not asking for boxes the size of a continent.
+    ///
+    /// Each returned station's raw METAR is also written into the
+    /// per-station cache, so an immediate single-ICAO `metar(for:)` for
+    /// any of these stations is a free cache hit.
+    public func metarsInBBox(
+        minLat: Double, minLon: Double, maxLat: Double, maxLon: Double
+    ) async throws -> [BBoxStation] {
+        // Clamp inputs to the legal range so a momentarily-bogus
+        // viewport (e.g. mid-zoom transition) can't generate a URL the
+        // server rejects.
+        let latLo = max(-90,  min(90,  minLat))
+        let latHi = max(-90,  min(90,  maxLat))
+        let lonLo = max(-180, min(180, minLon))
+        let lonHi = max(-180, min(180, maxLon))
+        let bbox = "\(fmt(latLo)),\(fmt(lonLo)),\(fmt(latHi)),\(fmt(lonHi))"
+        let urlString = "https://aviationweather.gov/api/data/metar?bbox=\(bbox)&format=json"
+
+        let data = try await retrying(label: "metar-bbox \(bbox)") {
+            try await self.fetchData(urlString)
+        }
+        let raw = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] ?? []
+        var out: [BBoxStation] = []
+        out.reserveCapacity(raw.count)
+        let now = Date()
+        for dict in raw {
+            guard
+                let icao = dict["icaoId"] as? String,
+                let lat = (dict["lat"] as? NSNumber)?.doubleValue,
+                let lon = (dict["lon"] as? NSNumber)?.doubleValue,
+                let rawOb = dict["rawOb"] as? String
+            else { continue }
+            let fltCat = BBoxStation.FltCat(rawValue: (dict["fltCat"] as? String) ?? "") ?? .unknown
+            let observed: Date?
+            if let ts = dict["obsTime"] as? NSNumber {
+                observed = Date(timeIntervalSince1970: ts.doubleValue)
+            } else { observed = nil }
+            let station = BBoxStation(
+                icao: icao.uppercased(),
+                lat: lat,
+                lon: lon,
+                raw: rawOb,
+                fltCat: fltCat,
+                observedAt: observed
+            )
+            out.append(station)
+            // Warm the per-station cache so opening this airport in the
+            // METAR pane is instant.
+            let entry = Entry(stationId: station.icao, kind: .metar, raw: rawOb, fetchedAt: now)
+            cache["METAR|\(station.icao)"] = entry
+        }
+        saveToDisk()
+        Self.logger.info("metar-bbox \(bbox) → \(out.count) stations")
+        return out
+    }
+
+    private nonisolated func fmt(_ d: Double) -> String {
+        String(format: "%.4f", d)
+    }
+
     private func fetch(icao: String, kind: ReportKind) async -> Entry? {
         let key = "\(kind.rawValue.uppercased())|\(icao.uppercased())"
         if let entry = cache[key] {
@@ -191,6 +278,17 @@ public actor MetarService {
         }
         return String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    /// Same shape as `fetchRaw` but returns the body as `Data` so the
+    /// caller can run their own decoder (JSON for the bbox endpoint).
+    private func fetchData(_ urlString: String) async throws -> Data {
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+        let (data, response) = try await session.data(from: url)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw MetarHTTPError(status: http.statusCode)
+        }
+        return data
     }
 
     /// FAA D-ATIS via datis.clowd.io — text-based, FAA airports only. We

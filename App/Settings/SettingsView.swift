@@ -23,6 +23,7 @@ struct SettingsView: View {
     // before this setting existed, so nothing disappears after upgrade.
     @AppStorage("tally.panes.finance")      private var enableFinance      = true
     @AppStorage("tally.panes.aviation")     private var enableAviation     = true
+    @AppStorage("tally.panes.map")          private var enableMap          = true
     @AppStorage("tally.panes.stocks")       private var enableStocks       = false
 
     // Stocks management UI lives in StocksManageView (shared with the
@@ -80,6 +81,10 @@ struct SettingsView: View {
 
                 Toggle(Pane.aviation.moduleTitle, isOn: $enableAviation)
                 Text(Pane.aviation.moduleDescription)
+                    .font(.caption).foregroundStyle(.secondary)
+
+                Toggle(Pane.map.moduleTitle, isOn: $enableMap)
+                Text(Pane.map.moduleDescription)
                     .font(.caption).foregroundStyle(.secondary)
 
                 Toggle(Pane.stocks.moduleTitle, isOn: $enableStocks)

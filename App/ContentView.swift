@@ -7,6 +7,7 @@ enum Pane: String, CaseIterable, Identifiable {
     case timezone     = "Timezone"
     case finance      = "Finance"
     case aviation     = "Aviation"
+    case map          = "METAR Map"
     case stocks       = "Stocks"
 
     var id: String { rawValue }
@@ -16,6 +17,7 @@ enum Pane: String, CaseIterable, Identifiable {
         case .timezone:     return "globe"
         case .finance:      return "dollarsign.circle"
         case .aviation:     return "airplane"
+        case .map:          return "map"
         case .stocks:       return "chart.line.uptrend.xyaxis"
         }
     }
@@ -37,6 +39,7 @@ enum Pane: String, CaseIterable, Identifiable {
         case .calculator, .timezone: return nil
         case .finance:               return "tally.panes.finance"
         case .aviation:              return "tally.panes.aviation"
+        case .map:                   return "tally.panes.map"
         case .stocks:                return "tally.panes.stocks"
         }
     }
@@ -46,6 +49,7 @@ enum Pane: String, CaseIterable, Identifiable {
         switch self {
         case .finance:      return "Finance"
         case .aviation:     return "Aviation"
+        case .map:          return "METAR Map"
         case .stocks:       return "Stocks"
         default:            return rawValue
         }
@@ -56,6 +60,7 @@ enum Pane: String, CaseIterable, Identifiable {
         switch self {
         case .finance:      return "Loan, mortgage, real-estate deal analysis, tip & split."
         case .aviation:     return "METAR / TAF / ATIS, E6B flight computer, weight & balance."
+        case .map:          return "Interactive airport map with live METAR overlay (VFR / MVFR / IFR / LIFR colouring)."
         case .stocks:       return "Score a public company against Warren Buffett's Durable Competitive Advantage framework."
         default:            return ""
         }
@@ -258,6 +263,7 @@ struct ContentView: View {
     // from Settings.
     @AppStorage("tally.panes.finance")      private var enableFinance      = true
     @AppStorage("tally.panes.aviation")     private var enableAviation     = true
+    @AppStorage("tally.panes.map")          private var enableMap          = true
     // Stocks defaults to OFF — pulling financial data needs the user's
     // FMP API key, which is an explicit opt-in, so the pane stays hidden
     // until the user enables it in Settings.
@@ -271,6 +277,7 @@ struct ContentView: View {
             case .calculator, .timezone: return true
             case .finance:               return enableFinance
             case .aviation:              return enableAviation
+            case .map:                   return enableMap
             case .stocks:                return enableStocks
             }
         }
@@ -428,6 +435,7 @@ struct ContentView: View {
         case .timezone:     TimezoneView()
         case .finance:      FinancePane()
         case .aviation:     AviationPane()
+        case .map:          MapPane()
         case .stocks:       StocksPane()
         }
     }
