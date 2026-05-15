@@ -759,6 +759,37 @@ final class NumiEngineTests: XCTestCase {
                       "expected a result in USD, got: \(r)")
     }
 
+    // MARK: - User variables: case-insensitive
+    //
+    // The shared eval scope is wrapped in a Proxy that lowercases keys so
+    // `Total_price` and `total_price` resolve to the same slot. The user's
+    // identifier choice (camelCase / snake_case / MixedCase) is purely
+    // cosmetic — math.js never sees a difference at the storage layer.
+
+    func testVariableReferenceIsCaseInsensitive() throws {
+        let engine = try NumiEngine()
+        // Assign with one case, reference with another — they're the same var.
+        let results = engine.evaluate("a = 5\nA")
+        XCTAssertEqual(results.last?.value, "5",
+                       "`A` after `a = 5` must resolve via the same scope slot")
+    }
+
+    func testSnakeCaseVariableSurvivesCaseShuffle() throws {
+        let engine = try NumiEngine()
+        let results = engine.evaluate("Total_price = 100\ntotal_price + 50")
+        XCTAssertEqual(results.last?.value, "150",
+                       "`total_price` must read the value written to `Total_price`")
+    }
+
+    func testReassignmentAcrossCasesOverwritesSameSlot() throws {
+        // Two assignments with different cases should not produce two
+        // separate variables — the second write wins.
+        let engine = try NumiEngine()
+        let results = engine.evaluate("ABC = 7\nabc = 42\nAbc")
+        XCTAssertEqual(results.last?.value, "42",
+                       "reassigning with a different case must overwrite the same slot")
+    }
+
     func testNonCurrencyThreeLetterTokensAreNotUppercased() throws {
         // `the`, `and`, `for` are NOT currency codes — leaving them lowercase
         // matters because they'd otherwise become unbound symbols that mathjs

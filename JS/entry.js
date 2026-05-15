@@ -15,13 +15,52 @@ const math = create(all, {
 // register currency rates and aviation functions at startup.
 globalThis.math = math;
 
+/**
+ * Build a user-variable scope that treats identifiers as case-insensitive.
+ * All access (get / set / has / delete) is routed through a Proxy that
+ * lowercases string keys. So `Total_price` and `total_price` resolve to
+ * the same slot, matching the convention that user variables don't carry
+ * meaningful case distinctions. Math.js built-ins (`pi`, `sin`, `e`, …)
+ * live in a separate symbol table and are unaffected.
+ */
+function makeScope() {
+  const inner = {};
+  return new Proxy(inner, {
+    get(target, key) {
+      return typeof key === "string" ? target[key.toLowerCase()] : target[key];
+    },
+    set(target, key, value) {
+      if (typeof key === "string") target[key.toLowerCase()] = value;
+      else                          target[key] = value;
+      return true;
+    },
+    has(target, key) {
+      return typeof key === "string" ? key.toLowerCase() in target : key in target;
+    },
+    deleteProperty(target, key) {
+      return typeof key === "string"
+        ? delete target[key.toLowerCase()]
+        : delete target[key];
+    },
+    ownKeys(target) {
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target, key) {
+      if (typeof key === "string") {
+        return Reflect.getOwnPropertyDescriptor(target, key.toLowerCase());
+      }
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+  });
+}
+
 globalThis.tally = {
   /** Variables declared in the document survive across lines via this scope. */
-  scope: {},
+  scope: makeScope(),
 
   /** Reset before re-evaluating the whole document. */
   resetScope() {
-    globalThis.tally.scope = {};
+    globalThis.tally.scope = makeScope();
   },
 
   /**
