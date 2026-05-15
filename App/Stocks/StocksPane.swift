@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Stocks pane — analyse a public company against Warren Buffett's
 /// "Durable Competitive Advantage" framework. Pulls five years of
@@ -8,13 +9,24 @@ struct StocksPane: View {
     @AppStorage("tally.stocks.lastTicker") private var lastTicker: String = ""
     @AppStorage("tally.stocks.recentTickers") private var recentTickersRaw: String = ""
     @AppStorage("tally.stocks.fmpApiKey") private var apiKey: String = ""
+    @StateObject private var monitor = StocksConnectionMonitor.shared
 
     @State private var ticker: String = ""
     @State private var loading = false
-    @State private var error: String?
+    @State private var analysisError: AnalysisError?
     @State private var scorecard: DCAScorecard?
     @State private var budget: FMPClient.BudgetSnapshot?
     @State private var task: Task<Void, Never>?
+
+    /// Result-side error classification. Each case maps to a different
+    /// UI shape: coverage-gap gets the calm "not in your plan" card,
+    /// invalid-key bounces the user to the setup card, the rest render
+    /// as the small error chrome.
+    private enum AnalysisError: Equatable {
+        case coverageGap(symbol: String)
+        case invalidKey
+        case generic(String)
+    }
 
     private var recents: [String] {
         recentTickersRaw
@@ -25,31 +37,32 @@ struct StocksPane: View {
 
     var body: some View {
         Form {
-            inputSection
+            if apiKey.isEmpty {
+                // First-run / not-yet-keyed flow — the pane owns its
+                // setup so the user doesn't have to spelunk Settings to
+                // discover what FMP is or why a Mac app wants a key.
+                setupCardSection
+            } else {
+                inputSection
 
-            if let error {
-                Section {
-                    HStack(spacing: 6) {
-                        StatusBadge(level: .bad)
-                        Text(error)
-                            .font(.callout)
+                if let err = analysisError {
+                    errorSection(for: err)
+                }
+
+                if loading {
+                    Section {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text("Pulling financials from FMP…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-            }
 
-            if loading {
-                Section {
-                    HStack {
-                        ProgressView().controlSize(.small)
-                        Text("Pulling financials from FMP…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                if let card = scorecard {
+                    resultsSections(card: card)
                 }
-            }
-
-            if let card = scorecard {
-                resultsSections(card: card)
             }
         }
         .formStyle(.grouped)
@@ -66,10 +79,67 @@ struct StocksPane: View {
             }
             Task { await refreshBudget() }
         }
+        .onChange(of: apiKey) { _, new in
+            monitor.reflectKeyChange(newKey: new)
+            Task { await FMPClient.shared.setAPIKey(new.isEmpty ? nil : new) }
+        }
         .onDisappear { task?.cancel() }
     }
 
-    // MARK: - Sections
+    // MARK: - Setup card
+
+    /// Setup state shown when no key is set. Explains what FMP is, why
+    /// Tally needs a key, and offers a one-click link to get one — all
+    /// inline so the user never has to leave the pane to enable it.
+    @State private var pastedKey: String = ""
+
+    private var setupCardSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(TallyTheme.accent)
+                    Text("Connect a data source")
+                        .font(.headline)
+                }
+                Text("Tally pulls financial statements from **Financial Modeling Prep**, a third-party data provider. You'll need a free account — their free plan covers around 50 analyses per day of major US-listed companies.")
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Button {
+                        openURL("https://site.financialmodelingprep.com/developer/docs")
+                    } label: {
+                        Label("Get a free key", systemImage: "arrow.up.right.square")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(TallyTheme.accent)
+                    SecureField("Paste your FMP key here", text: $pastedKey)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(minWidth: 220)
+                    Button("Connect") {
+                        let trimmed = pastedKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        apiKey = trimmed
+                        pastedKey = ""
+                    }
+                    .disabled(pastedKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                Text("Need international markets or full S&P 500 coverage? FMP's paid plans start around $14/month. [See plans →](https://site.financialmodelingprep.com/developer/docs/pricing)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Stocks")
+        } footer: {
+            Text("Your key stays on this Mac. Tally never sends it anywhere except to FMP. You can change or remove it later in Settings → Stocks.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Input + recents
 
     private var inputSection: some View {
         Section {
@@ -110,17 +180,74 @@ struct StocksPane: View {
                     }
                 }
             }
-            if apiKey.isEmpty {
-                Text("Add your Financial Modeling Prep API key in Settings → Advanced → Financial Modeling Prep before running an analysis. The free tier covers ~50 analyses per day.")
-                    .font(.caption)
-                    .foregroundStyle(TallyTheme.statusCaution)
-            }
         } footer: {
             Text("Buffett's *Durable Competitive Advantage* framework, six axes scored 0–10. The free FMP tier returns five years of statements; the framework's 10-year tests are applied to that shorter window and flagged in the rationale.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
+
+    // MARK: - Error chrome
+
+    @ViewBuilder
+    private func errorSection(for err: AnalysisError) -> some View {
+        switch err {
+        case .coverageGap(let symbol):
+            coverageGapCard(symbol: symbol)
+        case .invalidKey:
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        StatusBadge(level: .bad)
+                        Text("FMP rejected the API key").fontWeight(.medium)
+                    }
+                    Text("Double-check the key in Settings → Stocks, or paste a fresh one.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .generic(let message):
+            Section {
+                HStack(spacing: 6) {
+                    StatusBadge(level: .bad)
+                    Text(message).font(.callout)
+                }
+            }
+        }
+    }
+
+    /// Calm "not in your plan" result card. Replaces the red HTTP-error
+    /// pattern when the failure mode is FMP's catalog gating rather than
+    /// a real fault. Explains the cause plainly and offers one quiet
+    /// upgrade link — no banners, no modals, no "Upgrade now!" buttons.
+    private func coverageGapCard(symbol: String) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    StatusBadge(level: .neutral)
+                    Text("\(symbol) isn't in your data plan")
+                        .fontWeight(.semibold)
+                }
+                Text("FMP's free tier focuses on a curated set of major US-listed companies. International listings (Lufthansa, Nestlé, ASML), several US large-caps (BRK.B, MCO, PG, HD, MA), and delisted companies require a paid plan.")
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Tally and your key are working — this is a coverage limit, not an error.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    openURL("https://site.financialmodelingprep.com/developer/docs/pricing")
+                } label: {
+                    Label("See FMP plans", systemImage: "arrow.up.right.square")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(TallyTheme.accent)
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    // MARK: - Results
 
     @ViewBuilder
     private func resultsSections(card: DCAScorecard) -> some View {
@@ -233,19 +360,14 @@ struct StocksPane: View {
 
     private var footerBar: some View {
         HStack(spacing: 6) {
+            Circle()
+                .fill(monitor.dotColour)
+                .frame(width: 8, height: 8)
+            Text(monitor.label)
+            Spacer()
             if let b = budget {
-                Text("API budget: \(b.callsToday)/\(b.callsLimit) calls today")
-                Text("·")
-                Text(byteString(b.bytesToday) + " / " + byteString(b.bytesLimit))
-                Spacer()
-                if b.isExhausted {
-                    StatusBadge(level: .bad)
-                    Text("limit reached — cached tickers still work")
-                        .foregroundStyle(TallyTheme.statusBad)
-                }
-            } else {
-                Text("API budget: pending")
-                Spacer()
+                Text("\(b.callsToday)/\(b.callsLimit) calls today")
+                    .foregroundStyle(.secondary)
             }
         }
         .font(.caption2)
@@ -261,11 +383,6 @@ struct StocksPane: View {
         }
     }
 
-    private func byteString(_ bytes: Int) -> String {
-        let mb = Double(bytes) / (1024 * 1024)
-        return String(format: "%.1f MB", mb)
-    }
-
     // MARK: - Analysis
 
     private func analyse() {
@@ -274,13 +391,10 @@ struct StocksPane: View {
         guard !symbol.isEmpty else { return }
         lastTicker = symbol
         recordRecent(symbol)
-        error = nil
+        analysisError = nil
         loading = true
 
         task = Task { @MainActor in
-            // Make sure the actor has the latest key — the user might have
-            // edited it in Settings between launches without re-opening
-            // the pane.
             await FMPClient.shared.setAPIKey(apiKey.isEmpty ? nil : apiKey)
             do {
                 let bundle = try await FMPClient.shared.analyse(symbol: symbol)
@@ -290,13 +404,29 @@ struct StocksPane: View {
                 scorecard = card
             } catch {
                 if Task.isCancelled { return }
-                self.error = (error as? LocalizedError)?.errorDescription
-                    ?? error.localizedDescription
-                self.scorecard = nil
+                analysisError = classify(error)
+                scorecard = nil
             }
             loading = false
             await refreshBudget()
         }
+    }
+
+    private func classify(_ error: Error) -> AnalysisError {
+        if let fmp = error as? FMPClient.FMPError {
+            switch fmp {
+            case .symbolNotCovered(let s):
+                return .coverageGap(symbol: s)
+            case .invalidAPIKey:
+                return .invalidKey
+            default:
+                return .generic(fmp.errorDescription ?? "\(fmp)")
+            }
+        }
+        if let local = error as? LocalizedError, let msg = local.errorDescription {
+            return .generic(msg)
+        }
+        return .generic(error.localizedDescription)
     }
 
     private func refreshBudget() async {
@@ -309,6 +439,11 @@ struct StocksPane: View {
         list.insert(symbol, at: 0)
         if list.count > 6 { list = Array(list.prefix(6)) }
         recentTickersRaw = list.joined(separator: ",")
+    }
+
+    private func openURL(_ raw: String) {
+        guard let url = URL(string: raw) else { return }
+        NSWorkspace.shared.open(url)
     }
 }
 

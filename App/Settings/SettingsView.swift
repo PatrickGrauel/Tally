@@ -25,10 +25,14 @@ struct SettingsView: View {
     @AppStorage("tally.panes.aviation")     private var enableAviation     = true
     @AppStorage("tally.panes.stocks")       private var enableStocks       = false
 
-    // Advanced — collapsed by default. The FMP API key powers the
-    // Stocks pane. Stored in UserDefaults as part of `tally.stocks.*`.
+    // Stocks — the API key field used to live in "Advanced", which hid
+    // the only step that makes the pane work behind a label that means
+    // "you probably don't need this". Now it sits in its own section
+    // directly under the Stocks toggle, visible only when Stocks is
+    // enabled.
     @AppStorage("tally.stocks.fmpApiKey")   private var fmpApiKey: String = ""
-    @State private var showAdvanced: Bool = false
+    @StateObject private var monitor = StocksConnectionMonitor.shared
+    @State private var budget: FMPClient.BudgetSnapshot?
 
     var body: some View {
         Form {
@@ -110,24 +114,46 @@ struct SettingsView: View {
                 }
             }
 
-            // MARK: Advanced — collapsed by default, hosts the API keys
-            // that don't fit anywhere else (currently just FMP for the
-            // Stocks pane). Tapping the header expands / collapses.
-            Section {
-                DisclosureGroup(isExpanded: $showAdvanced) {
+            // MARK: Stocks — only appears when the Stocks pane is on.
+            // Houses the FMP API key + the live connection status + the
+            // daily budget mirror, so the user can see at a glance
+            // whether the data source is healthy without bouncing into
+            // the pane.
+            if enableStocks {
+                Section {
                     LabeledContent("FMP API key") {
-                        SecureField("", text: $fmpApiKey)
+                        SecureField("", text: $fmpApiKey, prompt: Text("Paste your key"))
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 260)
                             .onChange(of: fmpApiKey) { _, new in
+                                monitor.reflectKeyChange(newKey: new)
                                 Task { await FMPClient.shared.setAPIKey(new.isEmpty ? nil : new) }
                             }
                     }
-                    Text("Financial Modeling Prep powers the Stocks pane. The free tier covers about 50 analyses per day. [Get a key](https://site.financialmodelingprep.com/developer/docs)")
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(monitor.dotColour)
+                            .frame(width: 8, height: 8)
+                        Text(monitor.label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let b = budget {
+                        LabeledContent("Today's usage") {
+                            Text("\(b.callsToday)/\(b.callsLimit) calls · \(String(format: "%.1f MB / %.0f MB", Double(b.bytesToday) / 1_048_576, Double(b.bytesLimit) / 1_048_576))")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("Free plan: a curated set of US-listed large-caps, around 50 analyses/day.  •  Starter ($14/mo): full S&P 500.  •  Premium: international markets. [See plans →](https://site.financialmodelingprep.com/developer/docs/pricing)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } label: {
-                    Label("Advanced", systemImage: "wrench.and.screwdriver")
+                } header: {
+                    Text("Stocks")
+                } footer: {
+                    Text("Your key stays on this Mac. Tally only sends it to financialmodelingprep.com when you analyse a ticker. [Get a free key →](https://site.financialmodelingprep.com/developer/docs)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -153,6 +179,11 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .frame(width: 480, height: 540)
+        .task {
+            // Mirror the daily budget into Settings so the user can see
+            // how their FMP allowance is doing without opening Stocks.
+            budget = await FMPClient.shared.budgetSnapshot()
+        }
         // `themedSheet` applies TallyTheme.background AND the user's
         // light/dark preference. Without it the Settings window ignores
         // the Appearance picker the user just changed.

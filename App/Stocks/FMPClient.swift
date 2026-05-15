@@ -78,7 +78,12 @@ actor FMPClient {
 
     enum FMPError: LocalizedError {
         case missingAPIKey
+        case invalidAPIKey
         case symbolNotFound(String)
+        /// FMP's "Special Endpoint" 402 — the ticker isn't in the user's
+        /// data plan (free tier covers a curated allowlist of US large-
+        /// caps; international + delisted + some US large-caps are paid).
+        case symbolNotCovered(String)
         case rateLimitExhausted
         case http(Int, String?)
         case network(String)
@@ -87,9 +92,13 @@ actor FMPClient {
         var errorDescription: String? {
             switch self {
             case .missingAPIKey:
-                return "Add your Financial Modeling Prep API key in Settings → Advanced."
+                return "No Financial Modeling Prep API key set."
+            case .invalidAPIKey:
+                return "Your Financial Modeling Prep key was rejected. Double-check it in Settings → Stocks."
             case .symbolNotFound(let s):
                 return "No data found for \(s)."
+            case .symbolNotCovered(let s):
+                return "\(s) isn't covered by your FMP plan."
             case .rateLimitExhausted:
                 return "API budget exhausted for today. Previously-analysed tickers still work from cache."
             case .http(let code, let body):
@@ -111,6 +120,46 @@ actor FMPClient {
     /// from cache when fresh, from the network otherwise, and from cache
     /// (stale-tagged) when the network can't be used.
     func fetch(_ endpoint: Endpoint, symbol: String) async throws -> Payload {
+        do {
+            let payload = try await fetchInner(endpoint, symbol: symbol)
+            // Only update the monitor when we actually exercised the
+            // network; a pure-cache hit doesn't tell us anything new
+            // about the key's health or coverage status.
+            if !payload.fromCache {
+                let now = Date()
+                let upper = symbol.uppercased()
+                Task { @MainActor in
+                    StocksConnectionMonitor.shared.update(.ok(symbol: upper, at: now))
+                }
+            }
+            return payload
+        } catch let error as FMPError {
+            let upper = symbol.uppercased()
+            switch error {
+            case .invalidAPIKey:
+                Task { @MainActor in
+                    StocksConnectionMonitor.shared.update(.invalidKey)
+                }
+            case .symbolNotCovered:
+                Task { @MainActor in
+                    StocksConnectionMonitor.shared.update(.coverageGap(symbol: upper))
+                }
+            case .rateLimitExhausted:
+                Task { @MainActor in
+                    StocksConnectionMonitor.shared.update(.rateLimited)
+                }
+            case .network:
+                Task { @MainActor in
+                    StocksConnectionMonitor.shared.update(.networkProblem)
+                }
+            default:
+                break
+            }
+            throw error
+        }
+    }
+
+    private func fetchInner(_ endpoint: Endpoint, symbol: String) async throws -> Payload {
         let upper = symbol.uppercased()
         let key = cacheKey(symbol: upper, endpoint: endpoint)
         let now = Date()
@@ -159,13 +208,35 @@ actor FMPClient {
         persistBudget()
 
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            let body = String(data: data, encoding: .utf8)?.prefix(200).description
-            // 401/403 → key issue; anything 4xx/5xx fall through to cache.
-            if let cached = cache[symbolEndpointKey(symbol: upper, endpoint: endpoint)] {
-                return Payload(json: cached.json, fetchedAt: cached.fetchedAt,
-                               fromCache: true, stale: true)
+            let bodyString = String(data: data, encoding: .utf8) ?? ""
+            // Classify FMP's 4xx flavours before falling back to cache:
+            //   401/403 → key is missing or wrong → don't silently mask
+            //             with stale data, surface the auth problem.
+            //   402 "Special Endpoint" → the ticker isn't in this plan's
+            //             coverage allowlist. Surface as .symbolNotCovered
+            //             so the UI can render the calm "not in your plan"
+            //             card instead of a red HTTP error.
+            //   Everything else → fall through to stale cache if we have it.
+            switch http.statusCode {
+            case 401, 403:
+                throw FMPError.invalidAPIKey
+            case 402:
+                if bodyString.contains("Special Endpoint") ||
+                   bodyString.localizedCaseInsensitiveContains("not available under your current subscription") {
+                    throw FMPError.symbolNotCovered(upper)
+                }
+                if let cached = cache[symbolEndpointKey(symbol: upper, endpoint: endpoint)] {
+                    return Payload(json: cached.json, fetchedAt: cached.fetchedAt,
+                                   fromCache: true, stale: true)
+                }
+                throw FMPError.http(402, bodyString.prefix(200).description)
+            default:
+                if let cached = cache[symbolEndpointKey(symbol: upper, endpoint: endpoint)] {
+                    return Payload(json: cached.json, fetchedAt: cached.fetchedAt,
+                                   fromCache: true, stale: true)
+                }
+                throw FMPError.http(http.statusCode, bodyString.prefix(200).description)
             }
-            throw FMPError.http(http.statusCode, body)
         }
 
         // FMP returns a `{"Error Message": "..."}` body on lookup misses or
@@ -223,14 +294,25 @@ actor FMPClient {
 
     func analyse(symbol: String) async throws -> AnalysisBundle {
         let upper = symbol.uppercased()
-        async let income   = fetch(.incomeStatement, symbol: upper)
-        async let balance  = fetch(.balanceSheet,    symbol: upper)
-        async let cash     = fetch(.cashFlow,        symbol: upper)
-        async let metrics  = fetch(.keyMetrics,      symbol: upper)
-        async let profile  = fetch(.profile,         symbol: upper)
+        // Pre-flight probe: fetch `/income-statement` first as the
+        // coverage gate. `/profile` is too lenient — FMP serves profile
+        // metadata for international tickers like LHA.DE even on free,
+        // but 402s the fundamentals. Gating on income-statement gives a
+        // true read of whether the rest of the analysis will succeed.
+        //
+        // On the success path the income response is cached, so the
+        // subsequent `async let income` is a cache hit — same total call
+        // count as the parallel-without-probe version (5 calls).
+        // On the failure path we throw .symbolNotCovered after 1 call
+        // instead of burning 4.
+        let income = try await fetch(.incomeStatement, symbol: upper)
+        async let balance  = fetch(.balanceSheet, symbol: upper)
+        async let cash     = fetch(.cashFlow,     symbol: upper)
+        async let metrics  = fetch(.keyMetrics,   symbol: upper)
+        async let profile  = fetch(.profile,      symbol: upper)
         return AnalysisBundle(
             symbol: upper,
-            income:     try await income,
+            income:     income,
             balance:    try await balance,
             cashFlow:   try await cash,
             keyMetrics: try await metrics,
