@@ -223,7 +223,7 @@ final class ColumnContainer: NSView {
 
     private let minEditorWidth: CGFloat = 240
     private let minGutterWidth: CGFloat = 160
-    private let dividerHitWidth: CGFloat = 7
+    private let dividerHitWidth: CGFloat = 11   // wider hit area for easier drag
 
     override var isFlipped: Bool { true }
 
@@ -232,27 +232,90 @@ final class ColumnContainer: NSView {
         relayoutChildren()
     }
 
+    /// Bottom padding so the user can scroll the cursor away from
+    /// the window edge — like "scroll past end" in code editors.
+    private let scrollPastEndPadding: CGFloat = 80
+
     /// Resize self to match the editor's content height, then re-lay
     /// out the three subviews. Called on text-did-change, results
     /// change, and width change.
+    ///
+    /// Order matters:
+    ///   1. Apply gutter's per-line extra heights → editor paragraph
+    ///      spacing. This pushes editor source lines down to make
+    ///      room for multi-line METAR/TAF results below the result's
+    ///      starting y. Without it, a tall result draws on top of
+    ///      the next source line in the gutter.
+    ///   2. Editor relays out with the new spacing.
+    ///   3. Compute new line y-positions from the editor and hand
+    ///      them to the gutter so it draws each result at the
+    ///      correct y (now accounting for the spacing).
+    ///   4. Size documentView to whichever is taller — editor content
+    ///      height or the gutter's max-row-bottom — plus scroll-past-
+    ///      end padding so the cursor never sits at the window edge.
     func relayoutAndResize() {
-        guard let editor else { return }
+        guard let editor, let gutter else { return }
+        // Step 0: lay out so the gutter knows its width (needed for
+        // bounding-rect calculations).
+        relayoutChildren()
+
+        // Step 1: gutter computes per-source-line extra heights and
+        // the container stamps them as paragraph spacing on the editor.
+        let extras = gutter.computeExtraHeights()
+        applyEditorParagraphSpacing(extras: extras, in: editor)
+
+        // Step 2: layout the editor with the new spacing.
         editor.layoutManager?.ensureLayout(for: editor.textContainer!)
         let used = editor.layoutManager?.usedRect(for: editor.textContainer!).height ?? 0
         let editorContentHeight = used + editor.textContainerInset.height * 2
+
+        // Step 3: per-line y-positions for the gutter to draw against.
+        gutter.lineYPositions = computeLineYPositions(for: editor)
+        gutter.needsDisplay = true
+
+        // Step 4: size documentView. Take whichever bottom edge is
+        // lower (editor or gutter), pad for scroll-past-end, clamp
+        // to at least the scroll view's visible height so a short
+        // document still fills the window.
+        let gutterBottom = gutter.maxRowBottom()
         let scrollHeight = enclosingScrollView?.contentView.bounds.height ?? 0
-        let target = max(editorContentHeight, scrollHeight, 100)
+        let target = max(editorContentHeight,
+                         gutterBottom,
+                         scrollHeight) + scrollPastEndPadding
         if abs(frame.height - target) > 0.5 {
             var f = frame
             f.size.height = target
             frame = f
+            relayoutChildren()
         }
-        relayoutChildren()
-        // Recompute the per-line y-position map from the editor's
-        // layoutManager and hand it to the gutter so each result
-        // draws next to its source line, not stacked sequentially.
-        gutter?.lineYPositions = computeLineYPositions(for: editor)
-        gutter?.needsDisplay = true
+    }
+
+    /// Walk the editor's text storage paragraph-by-paragraph and stamp
+    /// each line with a `paragraphSpacing` equal to the gutter's
+    /// extra-height entry for that source line. Attribute changes
+    /// (no character changes) don't re-trigger textDidChange, so no
+    /// recursion risk.
+    private func applyEditorParagraphSpacing(extras: [Int: CGFloat], in tv: NSTextView) {
+        guard let storage = tv.textStorage else { return }
+        let fullText = storage.string as NSString
+        let total = fullText.length
+        storage.beginEditing()
+        var loc = 0
+        var lineIdx = 0
+        while loc <= total {
+            let lineRange = fullText.lineRange(for: NSRange(location: loc, length: 0))
+            let extra = extras[lineIdx] ?? 0
+            let p = NSMutableParagraphStyle()
+            p.minimumLineHeight = 18
+            p.maximumLineHeight = 18
+            p.paragraphSpacing = extra
+            storage.addAttribute(.paragraphStyle, value: p, range: lineRange)
+            lineIdx += 1
+            let newLoc = lineRange.location + lineRange.length
+            if newLoc == loc { break }
+            loc = newLoc
+        }
+        storage.endEditing()
     }
 
     /// Walks the text storage paragraph-by-paragraph and asks the
@@ -340,25 +403,33 @@ final class ColumnContainer: NSView {
 
 // MARK: - DividerStrip
 
-/// A 1pt visible line with a 7pt invisible hit area. Hover changes
+/// A 1pt visible line with an 11pt invisible hit area. Hover changes
 /// the cursor to .resizeLeftRight; click-drag emits horizontal deltas
-/// to the container.
+/// to the container. The visible line is `TallyTheme.muted` so it
+/// reads as a real separator without being loud — brighter on hover.
 final class DividerStrip: NSView {
     var onDrag: (CGFloat) -> Void = { _ in }
     private var trackingArea: NSTrackingArea?
     private var lastDragPoint: NSPoint?
+    private var isHovering: Bool = false {
+        didSet { needsDisplay = true }
+    }
 
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        // 1pt vertical hairline centred in the 7pt hit zone.
+        // 1pt vertical hairline centred in the hit zone. A bit brighter
+        // than TallyTheme.divider so the user can find the drag handle.
         let line = NSRect(
             x: (bounds.width - 1) / 2,
             y: 0,
             width: 1,
             height: bounds.height
         )
-        NSColor(TallyTheme.divider).setFill()
+        let colour = isHovering
+            ? NSColor(TallyTheme.accent)
+            : NSColor(TallyTheme.muted).withAlphaComponent(0.45)
+        colour.setFill()
         line.fill()
     }
 
@@ -382,10 +453,12 @@ final class DividerStrip: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        isHovering = true
         NSCursor.resizeLeftRight.set()
     }
 
     override func mouseExited(with event: NSEvent) {
+        isHovering = false
         NSCursor.arrow.set()
     }
 
@@ -441,6 +514,61 @@ final class GutterView: NSView {
 
     let rowHeight: CGFloat = 18
     let horizontalPadding: CGFloat = 18
+
+    /// Per source line: how much vertical space the result needs *beyond*
+    /// the editor's standard line height. Used by the container to push
+    /// editor lines down via paragraph spacing so a multi-line METAR
+    /// doesn't draw on top of the next source line.
+    func computeExtraHeights() -> [Int: CGFloat] {
+        let textWidth = max(0, bounds.width - horizontalPadding * 2)
+        guard textWidth > 0 else { return [:] }
+        var extras: [Int: CGFloat] = [:]
+        for r in results {
+            let value = renderValue(r)
+            let valueRect = value.boundingRect(
+                with: NSSize(width: textWidth, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            )
+            let annHeight: CGFloat = {
+                guard let ann = renderAnnotation(r) else { return 0 }
+                return ann.boundingRect(
+                    with: NSSize(width: textWidth, height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading]
+                ).height
+            }()
+            let total = max(rowHeight, valueRect.height) + annHeight
+            let extra = total - rowHeight
+            if extra > 0.5 { extras[r.line] = extra }
+        }
+        return extras
+    }
+
+    /// Maximum y reached by any drawn row, in this view's coordinate
+    /// space. Used by the container so the documentView's height
+    /// includes any gutter overflow past the editor's content height.
+    func maxRowBottom() -> CGFloat {
+        let textWidth = max(0, bounds.width - horizontalPadding * 2)
+        guard textWidth > 0 else { return 0 }
+        var maxY: CGFloat = 0
+        for r in results {
+            guard let y = lineYPositions[r.line] else { continue }
+            let value = renderValue(r)
+            let valueRect = value.boundingRect(
+                with: NSSize(width: textWidth, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            )
+            let annHeight: CGFloat = {
+                guard let ann = renderAnnotation(r) else { return 0 }
+                return ann.boundingRect(
+                    with: NSSize(width: textWidth, height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading]
+                ).height
+            }()
+            let rowBottom = y + max(rowHeight, valueRect.height) + annHeight
+            if rowBottom > maxY { maxY = rowBottom }
+        }
+        return maxY
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor(TallyTheme.background).setFill()
