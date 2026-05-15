@@ -212,9 +212,10 @@ struct CalculatorPane: View {
     }
 
     /// METAR/TAF visibility highlight — semantic colouring against the
-    /// US flight-category thresholds (most universal):
-    ///   • vis < 5000 m  → red    (IFR territory)
-    ///   • vis < 8000 m  → amber  (MVFR territory)
+    /// US flight-category thresholds (boundaries inclusive, matching
+    /// the FAA convention where vis ≤ 3 SM is IFR and ≤ 5 SM is MVFR):
+    ///   • vis ≤ 5000 m  → red    (IFR territory)
+    ///   • vis ≤ 8000 m  → amber  (MVFR territory)
     ///   • otherwise no highlight
     ///
     /// The regex matches any standalone 4-digit token NOT bracketed by
@@ -243,9 +244,9 @@ struct CalculatorPane: View {
                       let v = Int(ns.substring(with: valueRange))
                 else { continue }
                 let colour: NSColor
-                if v < 5000      { colour = NSColor(TallyTheme.statusBad) }
-                else if v < 8000 { colour = NSColor(TallyTheme.statusCaution) }
-                else             { continue }
+                if v <= 5000      { colour = NSColor(TallyTheme.statusBad) }
+                else if v <= 8000 { colour = NSColor(TallyTheme.statusCaution) }
+                else              { continue }
                 attr.addAttribute(.foregroundColor, value: colour, range: match.range)
             }
         }
@@ -256,9 +257,9 @@ struct CalculatorPane: View {
                       let v = Int(ns.substring(with: valueRange))
                 else { continue }
                 let colour: NSColor
-                if v < 3      { colour = NSColor(TallyTheme.statusBad) }
-                else if v < 5 { colour = NSColor(TallyTheme.statusCaution) }
-                else          { continue }
+                if v <= 3      { colour = NSColor(TallyTheme.statusBad) }
+                else if v <= 5 { colour = NSColor(TallyTheme.statusCaution) }
+                else           { continue }
                 attr.addAttribute(.foregroundColor, value: colour, range: match.range)
             }
         }
@@ -266,9 +267,10 @@ struct CalculatorPane: View {
 
     /// METAR/TAF ceiling highlight. A ceiling is the lowest `BKN` /
     /// `OVC` / `VV` layer; `FEW` and `SCT` are not ceilings. Each
-    /// matching layer is highlighted independently against:
-    ///   • height < 1000 ft AGL → red   (IFR / LIFR)
-    ///   • height < 3000 ft AGL → amber (MVFR)
+    /// matching layer is highlighted independently against the FAA
+    /// flight-category boundaries (inclusive):
+    ///   • height ≤ 1000 ft AGL → red   (IFR / LIFR)
+    ///   • height ≤ 3000 ft AGL → amber (MVFR)
     private static let ceilingRegex: NSRegularExpression? = {
         try? NSRegularExpression(pattern: #"\b(BKN|OVC|VV)(\d{3})\b"#)
     }()
@@ -283,9 +285,9 @@ struct CalculatorPane: View {
             else { continue }
             let feet = hundreds * 100
             let colour: NSColor
-            if feet < 1000      { colour = NSColor(TallyTheme.statusBad) }
-            else if feet < 3000 { colour = NSColor(TallyTheme.statusCaution) }
-            else                { continue }
+            if feet <= 1000      { colour = NSColor(TallyTheme.statusBad) }
+            else if feet <= 3000 { colour = NSColor(TallyTheme.statusCaution) }
+            else                 { continue }
             attr.addAttribute(.foregroundColor, value: colour, range: match.range)
         }
     }
