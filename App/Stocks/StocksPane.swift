@@ -20,6 +20,10 @@ struct StocksPane: View {
     /// Manage popover — the in-pane shortcut to the key / plan / usage
     /// view, anchored to the footer status bar.
     @State private var showManage = false
+    /// Which axis rows are expanded into their drill-down view. Backed
+    /// by `Axis` directly so toggling survives any re-renders that
+    /// reorder the cards.
+    @State private var expandedAxes: Set<Axis> = []
 
     /// Result-side error classification. Each case maps to a different
     /// UI shape: coverage-gap gets the calm "not in your plan" card,
@@ -316,30 +320,58 @@ struct StocksPane: View {
 
         Section("Scores") {
             ForEach(card.axes) { axis in
-                axisRow(axis)
+                axisRow(axis, card: card)
             }
         }
     }
 
-    private func axisRow(_ axis: AxisScore) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .center) {
-                Text(axis.axis.rawValue)
-                    .fontWeight(.medium)
-                Spacer()
-                if let s = axis.score {
-                    HStack(spacing: 6) {
-                        ScoreBar(score: s)
-                        Text("\(Int(s.rounded()))/10")
-                            .font(.system(.body, design: .monospaced))
-                            .frame(width: 44, alignment: .trailing)
-                    }
-                } else {
-                    Text("N/A")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
+    private func axisRow(_ axis: AxisScore, card: DCAScorecard) -> some View {
+        let isExpanded = expandedAxes.contains(axis.axis)
+        // Only allow expansion if there's something more to show than
+        // the collapsed row already has — i.e. trend data is present.
+        let canExpand = axis.trend != nil
+
+        return VStack(alignment: .leading, spacing: 4) {
+            // Header — whole row is the toggle target when expansion is
+            // available. The chevron carries the affordance signal.
+            Button {
+                guard canExpand else { return }
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if isExpanded { expandedAxes.remove(axis.axis) }
+                    else          { expandedAxes.insert(axis.axis) }
                 }
+            } label: {
+                HStack(alignment: .center) {
+                    if canExpand {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                            .frame(width: 12)
+                    }
+                    Text(axis.axis.rawValue)
+                        .fontWeight(.medium)
+                        .foregroundStyle(TallyTheme.text)
+                    Spacer()
+                    if let s = axis.score {
+                        HStack(spacing: 6) {
+                            ScoreBar(score: s)
+                            Text("\(Int(s.rounded()))/10")
+                                .font(.system(.body, design: .monospaced))
+                                .frame(width: 44, alignment: .trailing)
+                                .foregroundStyle(TallyTheme.text)
+                        }
+                    } else {
+                        Text("N/A")
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(!canExpand)
+
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(axis.headline)
@@ -356,6 +388,18 @@ struct StocksPane: View {
                 if let trend = axis.trend {
                     Sparkline(trend: trend, tier: ScoreTier.tier(for: axis.score))
                 }
+            }
+
+            if isExpanded, canExpand {
+                AxisDetailView(
+                    axis: axis.axis,
+                    slices: [AxisDetailView.Slice(
+                        symbol: card.symbol,
+                        score: axis,
+                        color: TallyTheme.accent
+                    )]
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(.vertical, 2)
@@ -415,6 +459,7 @@ struct StocksPane: View {
         recordRecent(symbol)
         analysisError = nil
         loading = true
+        expandedAxes.removeAll()   // new analysis → start collapsed
 
         task = Task { @MainActor in
             await FMPClient.shared.setAPIKey(apiKey.isEmpty ? nil : apiKey)

@@ -159,7 +159,25 @@ struct AxisScore: Identifiable {
     /// keys on (e.g. gross-profit margin for Pricing Power). Used to
     /// render the inline sparkline + trend chip. nil for unscored axes.
     let trend: AxisTrend?
+    /// Threshold lines drawn behind the drill-down chart, so the user
+    /// can see at a glance which tier each year lands in. Ordered from
+    /// the highest cutoff (strong) to the lowest (weak).
+    let thresholds: [AxisThreshold]
+    /// Per-component score breakdown lines for composite axes. nil for
+    /// single-metric axes, where the rationale prose already explains
+    /// the score.
+    let breakdown: [String]?
     var id: Axis { axis }
+}
+
+/// One horizontal cutoff drawn on the drill-down chart. The space
+/// between two adjacent thresholds is tinted with the tier of the
+/// region's upper boundary (for `betterIsHigher` metrics) or the
+/// lower (for `betterIsLower` metrics like D/E or SG&A%).
+struct AxisThreshold {
+    let value: Double
+    let tier: ScoreTier
+    let label: String
 }
 
 /// Five-year metric trend for one axis. Values are chronological,
@@ -312,8 +330,16 @@ enum DCAScorer {
             betterIsHigher: true,
             format: { String(format: "%.1f%%", $0 * 100) }
         )
-        return AxisScore(axis: .pricingPower, score: scoreClamped,
-                         headline: headline, rationale: rationale, trend: trend)
+        let thresholds: [AxisThreshold] = [
+            AxisThreshold(value: 0.60, tier: .strong, label: "60% — strong moat"),
+            AxisThreshold(value: 0.40, tier: .mixed,  label: "40% — Buffett floor"),
+            AxisThreshold(value: 0.20, tier: .weak,   label: "20% — commodity"),
+        ]
+        return AxisScore(
+            axis: .pricingPower, score: scoreClamped,
+            headline: headline, rationale: rationale,
+            trend: trend, thresholds: thresholds, breakdown: nil
+        )
     }
 
     // MARK: - Axis 2 — Cost Discipline (composite)
@@ -325,19 +351,28 @@ enum DCAScorer {
 
         var score = 0.0
         // SG&A — 4 points
-        if sgaRatio <= 0.30 { score += 4 }
-        else if sgaRatio <= 0.50 { score += 2.5 }
-        else if sgaRatio <= 0.80 { score += 1 }
+        let sgaPoints: Double
+        if sgaRatio <= 0.30 { sgaPoints = 4 }
+        else if sgaRatio <= 0.50 { sgaPoints = 2.5 }
+        else if sgaRatio <= 0.80 { sgaPoints = 1 }
+        else { sgaPoints = 0 }
+        score += sgaPoints
         // R&D — 3 points, where minimal R&D is rewarded (Buffett's "moat
         // that doesn't need defending" point) but heavy R&D isn't punished
         // below zero — it's an information signal more than a verdict.
-        if rdRatio <= 0.05 { score += 3 }
-        else if rdRatio <= 0.15 { score += 2 }
-        else if rdRatio <= 0.30 { score += 1 }
+        let rdPoints: Double
+        if rdRatio <= 0.05 { rdPoints = 3 }
+        else if rdRatio <= 0.15 { rdPoints = 2 }
+        else if rdRatio <= 0.30 { rdPoints = 1 }
+        else { rdPoints = 0 }
+        score += rdPoints
         // Depreciation — 3 points
-        if depRatio <= 0.10 { score += 3 }
-        else if depRatio <= 0.20 { score += 2 }
-        else if depRatio <= 0.40 { score += 1 }
+        let depPoints: Double
+        if depRatio <= 0.10 { depPoints = 3 }
+        else if depRatio <= 0.20 { depPoints = 2 }
+        else if depRatio <= 0.40 { depPoints = 1 }
+        else { depPoints = 0 }
+        score += depPoints
 
         // Any single component > 80% → cap at 3 regardless.
         if sgaRatio > 0.80 || depRatio > 0.80 {
@@ -366,8 +401,22 @@ enum DCAScorer {
             betterIsHigher: false,
             format: { String(format: "%.0f%%", $0 * 100) }
         )
-        return AxisScore(axis: .costDiscipline, score: final,
-                         headline: headline, rationale: rationale, trend: trend)
+        let thresholds: [AxisThreshold] = [
+            AxisThreshold(value: 0.30, tier: .strong, label: "≤30% SG&A — Buffett target"),
+            AxisThreshold(value: 0.50, tier: .mixed,  label: "≤50%"),
+            AxisThreshold(value: 0.80, tier: .weak,   label: "80% cap"),
+        ]
+        let breakdown: [String] = [
+            String(format: "SG&A %.0f%%  →  %@/4", sgaRatio * 100, formatPts(sgaPoints)),
+            String(format: "R&D  %.0f%%  →  %@/3", rdRatio * 100, formatPts(rdPoints)),
+            String(format: "Dep  %.0f%%  →  %@/3", depRatio * 100, formatPts(depPoints)),
+            String(format: "Total  →  %@/10", formatPts(final)),
+        ]
+        return AxisScore(
+            axis: .costDiscipline, score: final,
+            headline: headline, rationale: rationale,
+            trend: trend, thresholds: thresholds, breakdown: breakdown
+        )
     }
 
     // MARK: - Axis 3 — Earnings Quality
@@ -377,7 +426,7 @@ enum DCAScorer {
             return AxisScore(axis: .earningsQuality, score: nil,
                              headline: "N/A — unprofitable in window",
                              rationale: "Net income was zero or negative across the available years; earnings-quality scoring is skipped.",
-                             trend: nil)
+                             trend: nil, thresholds: [], breakdown: nil)
         }
         let netMargin = safeDiv(latest.netIncome, latest.revenue)
         let epsTrend = trendQuality(values: years.map(\.eps).reversed().map { $0 })
@@ -409,8 +458,20 @@ enum DCAScorer {
             betterIsHigher: true,
             format: { String(format: "%.1f%%", $0 * 100) }
         )
-        return AxisScore(axis: .earningsQuality, score: total,
-                         headline: headline, rationale: rationale, trend: trend)
+        let thresholds: [AxisThreshold] = [
+            AxisThreshold(value: 0.20, tier: .strong, label: "20% — strong"),
+            AxisThreshold(value: 0.10, tier: .mixed,  label: "10% — adequate"),
+        ]
+        let breakdown: [String] = [
+            String(format: "Net margin %.1f%%  →  %@/7", netMargin * 100, formatPts(marginScore)),
+            "EPS trend \(epsTrend.label)  →  \(formatPts(epsTrend.bonus))/3",
+            String(format: "Total  →  %@/10", formatPts(total)),
+        ]
+        return AxisScore(
+            axis: .earningsQuality, score: total,
+            headline: headline, rationale: rationale,
+            trend: trend, thresholds: thresholds, breakdown: breakdown
+        )
     }
 
     // MARK: - Axis 4 — Capital Efficiency (adjusted ROE)
@@ -420,7 +481,7 @@ enum DCAScorer {
             return AxisScore(axis: .capitalEfficiency, score: nil,
                              headline: "N/A — unprofitable in window",
                              rationale: "ROE is meaningless when earnings are zero or negative; capital-efficiency scoring is skipped.",
-                             trend: nil)
+                             trend: nil, thresholds: [], breakdown: nil)
         }
         // Adjusted equity = equity + |treasury stock|. Buffett's rule:
         // share buybacks don't make a company *less* capital-efficient.
@@ -429,7 +490,7 @@ enum DCAScorer {
             return AxisScore(axis: .capitalEfficiency, score: nil,
                              headline: "N/A — negative or zero adjusted equity",
                              rationale: "Adjusted shareholders' equity is non-positive — likely heavy buybacks beyond cumulative retained earnings. Scoring uses the other axes only.",
-                             trend: nil)
+                             trend: nil, thresholds: [], breakdown: nil)
         }
         let adjROE = latest.netIncome / adjEquity
         let dToE = safeDiv(latest.totalLiabilities, adjEquity)
@@ -465,8 +526,16 @@ enum DCAScorer {
             betterIsHigher: true,
             format: { String(format: "%.1f%%", $0 * 100) }
         )
-        return AxisScore(axis: .capitalEfficiency, score: final,
-                         headline: headline, rationale: rationale, trend: trend)
+        let thresholds: [AxisThreshold] = [
+            AxisThreshold(value: 0.30, tier: .strong, label: "30% — top quality"),
+            AxisThreshold(value: 0.20, tier: .mixed,  label: "20% — Buffett floor"),
+            AxisThreshold(value: 0.15, tier: .weak,   label: "15% — soft"),
+        ]
+        return AxisScore(
+            axis: .capitalEfficiency, score: final,
+            headline: headline, rationale: rationale,
+            trend: trend, thresholds: thresholds, breakdown: nil
+        )
     }
 
     // MARK: - Axis 5 — Balance Sheet Safety (composite)
@@ -490,13 +559,19 @@ enum DCAScorer {
 
         var score: Double = 0
         // Debt / equity component — 5 pts.
-        if dToE < 0.30 { score += 5 }
-        else if dToE < 0.80 { score += 4 }
-        else if dToE < 1.20 { score += 2 }
+        let dePts: Double
+        if dToE < 0.30 { dePts = 5 }
+        else if dToE < 0.80 { dePts = 4 }
+        else if dToE < 1.20 { dePts = 2 }
+        else { dePts = 0 }
+        score += dePts
         // Pay-down-LT-debt component — 5 pts.
-        if payDownYears <= 3 { score += 5 }
-        else if payDownYears <= 4 { score += 4 }
-        else if payDownYears <= 6 { score += 2 }
+        let payPts: Double
+        if payDownYears <= 3 { payPts = 5 }
+        else if payDownYears <= 4 { payPts = 4 }
+        else if payDownYears <= 6 { payPts = 2 }
+        else { payPts = 0 }
+        score += payPts
         let final = min(10, max(0, score))
 
         var headline: String
@@ -520,8 +595,27 @@ enum DCAScorer {
             betterIsHigher: false,
             format: { String(format: "%.2f", $0) }
         )
-        return AxisScore(axis: .balanceSheet, score: final,
-                         headline: headline, rationale: rationale, trend: trend)
+        let thresholds: [AxisThreshold] = [
+            AxisThreshold(value: 0.30, tier: .strong, label: "D/E ≤ 0.30 — strong"),
+            AxisThreshold(value: 0.80, tier: .mixed,  label: "D/E ≤ 0.80 — Buffett target"),
+            AxisThreshold(value: 1.20, tier: .weak,   label: "D/E ≤ 1.20"),
+        ]
+        let payText: String
+        if payDownYears.isFinite {
+            payText = String(format: "%.1f yr", payDownYears)
+        } else {
+            payText = "no earnings cover"
+        }
+        let breakdown: [String] = [
+            String(format: "D/E %.2f  →  %@/5", dToE.isFinite ? dToE : 0, formatPts(dePts)),
+            "LT-debt pay-down \(payText)  →  \(formatPts(payPts))/5",
+            String(format: "Total  →  %@/10", formatPts(final)),
+        ]
+        return AxisScore(
+            axis: .balanceSheet, score: final,
+            headline: headline, rationale: rationale,
+            trend: trend, thresholds: thresholds, breakdown: breakdown
+        )
     }
 
     // MARK: - Axis 6 — Capital Allocation (composite)
@@ -542,14 +636,23 @@ enum DCAScorer {
 
         var score = 0.0
         // CapEx / earnings — 4 points
-        if capexRatio < 0.25 { score += 4 }
-        else if capexRatio < 0.50 { score += 2 }
+        let capexPts: Double
+        if capexRatio < 0.25 { capexPts = 4 }
+        else if capexRatio < 0.50 { capexPts = 2 }
+        else { capexPts = 0 }
+        score += capexPts
         // Buyback consistency — 3 points
-        if buybackTrend == .decreasing { score += 3 }
-        else if buybackTrend == .flat { score += 1 }
+        let bbPts: Double
+        if buybackTrend == .decreasing { bbPts = 3 }
+        else if buybackTrend == .flat { bbPts = 1 }
+        else { bbPts = 0 }
+        score += bbPts
         // RE CAGR > 8% — 3 points
-        if let c = reCagr, c > 0.08 { score += 3 }
-        else if let c = reCagr, c > 0.04 { score += 1.5 }
+        let rePts: Double
+        if let c = reCagr, c > 0.08 { rePts = 3 }
+        else if let c = reCagr, c > 0.04 { rePts = 1.5 }
+        else { rePts = 0 }
+        score += rePts
 
         let final = min(10, max(0, score))
 
@@ -582,8 +685,28 @@ enum DCAScorer {
             betterIsHigher: false,
             format: { String(format: "%.0f%%", $0 * 100) }
         )
-        return AxisScore(axis: .capitalAllocation, score: final,
-                         headline: headline, rationale: rationale, trend: trend)
+        let thresholds: [AxisThreshold] = [
+            AxisThreshold(value: 0.25, tier: .strong, label: "CapEx ≤ 25%"),
+            AxisThreshold(value: 0.50, tier: .mixed,  label: "CapEx ≤ 50%"),
+        ]
+        let reBreakdownText: String = reCagr.map { String(format: "%.1f%%", $0 * 100) } ?? "n/a"
+        let bbBreakdownText: String
+        switch buybackTrend {
+        case .decreasing: bbBreakdownText = "decreasing"
+        case .flat:       bbBreakdownText = "flat"
+        case .increasing: bbBreakdownText = "rising"
+        }
+        let breakdown: [String] = [
+            String(format: "CapEx %.0f%%  →  %@/4", capexRatio * 100, formatPts(capexPts)),
+            "Share count \(bbBreakdownText)  →  \(formatPts(bbPts))/3",
+            "Retained-earnings CAGR \(reBreakdownText)  →  \(formatPts(rePts))/3",
+            String(format: "Total  →  %@/10", formatPts(final)),
+        ]
+        return AxisScore(
+            axis: .capitalAllocation, score: final,
+            headline: headline, rationale: rationale,
+            trend: trend, thresholds: thresholds, breakdown: breakdown
+        )
     }
 
     // MARK: - Shape interpretation
@@ -624,6 +747,15 @@ enum DCAScorer {
     }
 
     // MARK: - Helpers
+
+    /// "2.5" not "2.50000…" and "3" not "3.0" — used in the breakdown
+    /// strings so "3/3" reads naturally next to "2.5/4".
+    private static func formatPts(_ v: Double) -> String {
+        if v.rounded() == v {
+            return String(Int(v))
+        }
+        return String(format: "%.1f", v)
+    }
 
     private static func safeDiv(_ a: Double, _ b: Double) -> Double {
         guard b != 0, b.isFinite else { return 0 }
