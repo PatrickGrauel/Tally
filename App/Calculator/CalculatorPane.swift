@@ -11,15 +11,10 @@ struct CalculatorPane: View {
 
     @State private var results: [LineResult] = []
     @State private var evaluateTask: Task<Void, Never>? = nil
-    /// Per-source-line extra vertical space that the editor needs to add
-    /// below that line so its left-column row height matches the gutter's
-    /// (multi-line) right-column row height. Driven by `RowHeightsKey`.
-    @State private var rowExtraHeights: [Int: CGFloat] = [:]
-    /// Editor scroll position (vertical offset in points). The gutter
-    /// mirrors this so each result stays aligned with its source line
-    /// even when the user scrolls a long document. The editor is the
-    /// single source of truth — the gutter becomes a passive viewport.
-    @State private var editorScrollY: CGFloat = 0
+    /// Width of the editor column inside the unified scroll surface.
+    /// Persisted so the user's preferred split survives launches; the
+    /// drag handle in the gutter divider writes back to this value.
+    @AppStorage("tally.calc.editorWidth") private var editorWidth: Double = 460
 
     /// Drives a periodic re-evaluation so live data (METAR/TAF freshness
     /// labels, current-time timezone results, FX rates) refreshes on its
@@ -28,10 +23,6 @@ struct CalculatorPane: View {
     /// sure those cooldowns get *checked* on a regular cadence.
     private let recomputeTick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
-    /// Editor line height. Forces the gutter rows to match so blank/header
-    /// lines don't collapse and throw off alignment.
-    private let lineHeight: CGFloat = 18
-
     var body: some View {
         Group {
             if let error {
@@ -39,20 +30,19 @@ struct CalculatorPane: View {
                                        systemImage: "exclamationmark.triangle",
                                        description: Text(error))
             } else {
-                HSplitView {
-                    AutocompletingEditor(
-                        text: Binding(
-                            get: { documents.selected.content },
-                            set: { documents.updateSelectedContent($0) }
-                        ),
-                        lineExtraHeights: rowExtraHeights,
-                        scrollY: $editorScrollY
-                    )
-                    .frame(minWidth: 320)
-                    .background(TallyTheme.background)
-
-                    resultsPane
-                }
+                UnifiedEditor(
+                    text: Binding(
+                        get: { documents.selected.content },
+                        set: { documents.updateSelectedContent($0) }
+                    ),
+                    editorWidth: Binding(
+                        get: { CGFloat(editorWidth) },
+                        set: { editorWidth = Double($0) }
+                    ),
+                    results: results,
+                    renderValue: { Self.renderValue($0) },
+                    renderAnnotation: { Self.renderAnnotation($0) }
+                )
                 .overlay(alignment: .bottomLeading) { gearButton }
             }
         }
@@ -79,180 +69,6 @@ struct CalculatorPane: View {
         // lines), and triggers `handleMetarLine` to nudge the cache bridge
         // — which itself decides whether to actually go to the network.
         .onReceive(recomputeTick) { _ in evaluate() }
-    }
-
-    private var resultsPane: some View {
-        // The gutter no longer scrolls itself. The inner column keeps
-        // its natural intrinsic size and is shifted up by the editor's
-        // scroll position via `.offset(y:)` — purely visual, no layout
-        // disturbance. The outer frame defines the visible viewport
-        // and clip mask, so anything offset off the top gets clipped.
-        // Result: one source of truth (the editor), and the gutter
-        // tracks it row-for-row.
-        VStack(alignment: .trailing, spacing: 0) {
-            ForEach(results, id: \.line) { r in
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text(valueAttributed(r))
-                        .textSelection(.enabled)
-                    if let ann = annotationAttributed(r) {
-                        Text(ann)
-                            .textSelection(.enabled)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: lineHeight, alignment: .trailing)
-                .background(rowHeightProbe(for: r.line))
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 14)
-        .padding(.bottom, 44)
-        .offset(y: -editorScrollY)
-        .frame(minWidth: 240, maxWidth: .infinity,
-               maxHeight: .infinity, alignment: .topTrailing)
-        .background(TallyTheme.background)
-        .clipped()
-        .onPreferenceChange(RowHeightsKey.self) { heights in
-            // Convert each row's *rendered* height into the extra
-            // vertical space we need below the matching editor line.
-            // The editor's natural line height is `lineHeight`; any
-            // overflow becomes paragraph-spacing.
-            var extras: [Int: CGFloat] = [:]
-            for (idx, h) in heights {
-                let extra = max(0, h - lineHeight)
-                if extra > 0.5 { extras[idx] = extra }
-            }
-            rowExtraHeights = extras
-        }
-    }
-
-    /// Background probe that emits the rendered height of one gutter row
-    /// into `RowHeightsKey`. Anchored to the row's line index so the
-    /// editor can look up the right extra-spacing per paragraph.
-    private func rowHeightProbe(for line: Int) -> some View {
-        GeometryReader { geo in
-            Color.clear.preference(key: RowHeightsKey.self,
-                                   value: [line: geo.size.height])
-        }
-    }
-
-    /// Main result text — without the freshness annotation, which is now
-    /// rendered on its own line so it stays visible after long
-    /// multi-line METAR/TAF values.
-    private func valueAttributed(_ r: LineResult) -> AttributedString {
-        // Numi-style: lines that don't parse render as blank. The user
-        // figures out what's wrong from the line they're typing, not
-        // from the calculator yelling at them. Empty / structural lines
-        // also render blank so the row keeps its baseline.
-        switch r.kind {
-        case .error:
-            var blank = AttributedString(" ")
-            blank.font = .system(.body, design: .monospaced)
-            return blank
-        default:
-            // Build the attributed string line-by-line so we can colour
-            // runway-wind suggestion lines (anything starting with
-            // "expect RWY ") in the accent colour, and so we can
-            // highlight high-gust wind groups (G > 20 kt) in red
-            // anywhere they appear in a METAR or TAF.
-            let text = display(r)
-            let baseColor = color(r)
-            var attr = AttributedString("")
-            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-            for (idx, line) in lines.enumerated() {
-                let lineStr = String(line)
-                var lineAttr = AttributedString(lineStr)
-                lineAttr.font = .system(.body, design: .monospaced)
-                if lineStr.hasPrefix("expect RWY") {
-                    lineAttr.foregroundColor = TallyTheme.accent
-                } else {
-                    lineAttr.foregroundColor = baseColor
-                }
-                Self.applyHighGustHighlight(to: &lineAttr, lineStr: lineStr)
-                attr += lineAttr
-                if idx < lines.count - 1 {
-                    attr += AttributedString("\n")
-                }
-            }
-            return attr
-        }
-    }
-
-    /// Pattern: an ICAO wind-group gust component like `G25KT`. We mark
-    /// the whole `G\d{2,3}KT` token in the accent colour (same orange
-    /// as the "expect RWY" suggestion) when the gust value is strictly
-    /// above 20 kt. Captured anywhere on the line so it triggers in
-    /// TEMPO / BECMG / PROBxx blocks of TAFs too — pilots don't care
-    /// which group the high gust lives in, only that it's forecast.
-    ///
-    /// No leading `\b`: in a real wind group like `24015G25KT` the
-    /// character before `G` is a digit, which is a word character, so
-    /// `\b` wouldn't match. Anchoring on the trailing `\b` after `KT`
-    /// is enough to keep us off false positives (e.g. `G25KTS` would
-    /// fail to match — though no real METAR uses that suffix).
-    private static let highGustRegex: NSRegularExpression? = {
-        try? NSRegularExpression(pattern: #"G(\d{2,3})KT\b"#)
-    }()
-
-    private static func applyHighGustHighlight(to attr: inout AttributedString, lineStr: String) {
-        guard let regex = Self.highGustRegex else { return }
-        let ns = lineStr as NSString
-        let fullRange = NSRange(location: 0, length: ns.length)
-        var searchStart = attr.startIndex
-        for match in regex.matches(in: lineStr, range: fullRange) {
-            let gustNumRange = match.range(at: 1)
-            guard gustNumRange.location != NSNotFound,
-                  let gust = Int(ns.substring(with: gustNumRange)),
-                  gust > 20
-            else { continue }
-            let token = ns.substring(with: match.range)
-            // Locate the same token inside the AttributedString. Search
-            // from `searchStart` so multiple gust tokens on the same
-            // line each get highlighted independently.
-            if let range = attr[searchStart...].range(of: token) {
-                attr[range].foregroundColor = TallyTheme.accent
-                searchStart = range.upperBound
-            }
-        }
-    }
-
-    /// "updated X min ago" / similar freshness annotation, rendered on
-    /// its own line below the main value so a long METAR/TAF doesn't
-    /// bury it. Returns nil when there's nothing to show.
-    private func annotationAttributed(_ r: LineResult) -> AttributedString? {
-        guard let a = r.annotation else { return nil }
-        var attr = AttributedString(a.label)
-        attr.font = .system(size: 10.5, design: .monospaced)
-        switch a.tone {
-        case .fresh:    attr.foregroundColor = TallyTheme.muted
-        case .stale:    attr.foregroundColor = TallyTheme.statusCaution
-        case .outdated: attr.foregroundColor = TallyTheme.statusBad
-        }
-        return attr
-    }
-
-    private func display(_ r: LineResult) -> String {
-        switch r.kind {
-        case .empty, .header, .comment, .label: return " "
-        case .expression, .timezone:
-            let v = r.value ?? ""
-            // Truly empty result → blank row (no em dash). Reserve the
-            // dash for the rare "we have a value but it isn't a number"
-            // case, which lands here as an empty string already.
-            if v.isEmpty || v == "undefined" || v == "null" { return " " }
-            return v
-        case .error:
-            // Unreached: error path is taken in attributedFor above.
-            return r.value ?? ""
-        }
-    }
-
-    private func color(_ r: LineResult) -> Color {
-        switch r.kind {
-        case .error:      return TallyTheme.statusCaution
-        case .timezone:   return TallyTheme.accent
-        case .expression: return TallyTheme.text
-        default:          return TallyTheme.muted
-        }
     }
 
     // MARK: - Gear
@@ -290,12 +106,123 @@ struct CalculatorPane: View {
         Self.logIdentityUnitRegressions(in: documents.selected.content, results: newResults)
     }
 
-    /// Diagnostic: detect when a currency-to-currency conversion produces
-    /// the same value+unit as its input (e.g. `25 EUR in USD = 25 USD`).
-    /// That's the signature of the FX bridge silently failing to register
-    /// the source/target currency — exactly the regression the user
-    /// reported. Logging it here means the next time it happens we can
-    /// pull the FX state out of `log show` instead of guessing.
+    // MARK: - Render (LineResult → NSAttributedString)
+
+    /// Main result text, sans the freshness annotation (which renders on
+    /// its own line so a long METAR/TAF doesn't bury it).
+    /// Numi-style: lines that don't parse render blank. Empty / structural
+    /// lines also render blank so the row keeps its baseline.
+    static func renderValue(_ r: LineResult) -> NSAttributedString {
+        switch r.kind {
+        case .error:
+            let blank = NSMutableAttributedString(string: " ")
+            blank.addAttribute(.font,
+                               value: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+                               range: NSRange(location: 0, length: blank.length))
+            return blank
+        default:
+            let text = display(r)
+            let baseColor = NSColor(color(r))
+            let result = NSMutableAttributedString()
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .right
+            paragraph.lineBreakMode = .byWordWrapping
+            for (idx, line) in lines.enumerated() {
+                let lineAttr = NSMutableAttributedString(string: line)
+                let lineRange = NSRange(location: 0, length: lineAttr.length)
+                lineAttr.addAttribute(.font, value: monoFont, range: lineRange)
+                lineAttr.addAttribute(.paragraphStyle, value: paragraph, range: lineRange)
+                if line.hasPrefix("expect RWY") {
+                    lineAttr.addAttribute(.foregroundColor,
+                                          value: NSColor(TallyTheme.accent),
+                                          range: lineRange)
+                } else {
+                    lineAttr.addAttribute(.foregroundColor, value: baseColor, range: lineRange)
+                }
+                applyHighGustHighlight(to: lineAttr, source: line)
+                result.append(lineAttr)
+                if idx < lines.count - 1 {
+                    result.append(NSAttributedString(string: "\n",
+                                                    attributes: [
+                                                        .font: monoFont,
+                                                        .paragraphStyle: paragraph,
+                                                    ]))
+                }
+            }
+            return result
+        }
+    }
+
+    /// "updated X min ago" / similar freshness annotation, on its own
+    /// line beneath the main value. Returns nil when nothing to show.
+    static func renderAnnotation(_ r: LineResult) -> NSAttributedString? {
+        guard let a = r.annotation else { return nil }
+        let attr = NSMutableAttributedString(string: a.label)
+        let range = NSRange(location: 0, length: attr.length)
+        attr.addAttribute(.font,
+                          value: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular),
+                          range: range)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .right
+        attr.addAttribute(.paragraphStyle, value: paragraph, range: range)
+        let colour: NSColor
+        switch a.tone {
+        case .fresh:    colour = NSColor(TallyTheme.muted)
+        case .stale:    colour = NSColor(TallyTheme.statusCaution)
+        case .outdated: colour = NSColor(TallyTheme.statusBad)
+        }
+        attr.addAttribute(.foregroundColor, value: colour, range: range)
+        return attr
+    }
+
+    /// Tag any `G{value}KT` gust group above 20 kt in the accent
+    /// colour. Mirrors the SwiftUI version that lived in this file
+    /// before the layout refactor.
+    private static let highGustRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"G(\d{2,3})KT\b"#)
+    }()
+    private static func applyHighGustHighlight(to attr: NSMutableAttributedString, source: String) {
+        guard let regex = Self.highGustRegex else { return }
+        let ns = source as NSString
+        let fullRange = NSRange(location: 0, length: ns.length)
+        for match in regex.matches(in: source, range: fullRange) {
+            let gustRange = match.range(at: 1)
+            guard gustRange.location != NSNotFound,
+                  let gust = Int(ns.substring(with: gustRange)),
+                  gust > 20
+            else { continue }
+            // attr was built from `source` 1:1, so the same NSRange applies.
+            attr.addAttribute(.foregroundColor,
+                              value: NSColor(TallyTheme.accent),
+                              range: match.range)
+        }
+    }
+
+    private static func display(_ r: LineResult) -> String {
+        switch r.kind {
+        case .empty, .header, .comment, .label: return " "
+        case .expression, .timezone:
+            let v = r.value ?? ""
+            if v.isEmpty || v == "undefined" || v == "null" { return " " }
+            return v
+        case .error:
+            return r.value ?? ""
+        }
+    }
+
+    private static func color(_ r: LineResult) -> Color {
+        switch r.kind {
+        case .error:      return TallyTheme.statusCaution
+        case .timezone:   return TallyTheme.accent
+        case .expression: return TallyTheme.text
+        default:          return TallyTheme.muted
+        }
+    }
+
+    // MARK: - Diagnostics
+
     private static let identityLogger = Logger(subsystem: "app.tally.Tally", category: "calculator-diag")
     private static let identityConversionRegex: NSRegularExpression? = {
         try? NSRegularExpression(
@@ -315,19 +242,11 @@ struct CalculatorPane: View {
             else { continue }
             let srcCur = ns.substring(with: m.range(at: 2)).uppercased()
             let dstCur = ns.substring(with: m.range(at: 3)).uppercased()
-            // We only care about CURRENCY → DIFFERENT-CURRENCY conversions.
-            // Same-currency conversions ("1 EUR in EUR") legitimately stay
-            // 1:1 and aren't a bug.
             guard srcCur != dstCur else { continue }
             guard let value = r.value else { continue }
-            // Look at the unit suffix in the result. The result format is
-            // "<number> <UNIT>" with the unit upper-cased; "25 USD" / "20.5 USD"
-            // / "1.05e+04 USD" etc. Lift the trailing token.
             let trimmed = value.trimmingCharacters(in: .whitespaces)
             guard let unitStart = trimmed.lastIndex(of: " ") else { continue }
             let unit = String(trimmed[trimmed.index(after: unitStart)...]).uppercased()
-            // If the result unit equals the SOURCE unit (not the requested
-            // target), the conversion silently no-op'd — that's the bug.
             if unit == srcCur && unit != dstCur {
                 identityLogger.error("identity-conversion regression: \(raw) → \(value) (FX bridge may have failed to register \(dstCur))")
             }
@@ -335,243 +254,16 @@ struct CalculatorPane: View {
     }
 }
 
-// MARK: - Inline-autocomplete editor
+// MARK: - AutocompletingTextView (preserved verbatim from prior layout)
 //
-// Custom NSTextView that draws a *ghost* suggestion after the cursor when the
-// `SuggestionEngine` finds a dimension-compatible unit completion. Enter or
-// Tab inserts the suggestion; Escape dismisses it.
-//
-// Deliberately does **not** mess with `textContainer.containerSize` /
-// `setFrameSize` — those are the two paths that triggered the layout-
-// recursion crash in the earlier custom-NSTextView attempt.
+// The editor's custom NSTextView with ghost-suggestion drawing. The
+// surrounding container changed (UnifiedEditor instead of HSplitView)
+// but this class itself is unchanged.
 
-/// Collects the rendered height of each gutter row keyed by source line.
-/// Last writer wins per key — SwiftUI calls `reduce` repeatedly during
-/// layout so we merge instead of overwriting wholesale.
-private struct RowHeightsKey: PreferenceKey {
-    static var defaultValue: [Int: CGFloat] = [:]
-    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
-        for (k, v) in nextValue() { value[k] = v }
-    }
-}
-
-private struct AutocompletingEditor: NSViewRepresentable {
-    @Binding var text: String
-    /// Per-source-line extra vertical space measured from the gutter
-    /// rendering. Applied as `paragraphSpacing` on each line in the text
-    /// storage so the editor's left column matches the gutter's row
-    /// heights — even when a METAR/TAF result wraps to many lines.
-    var lineExtraHeights: [Int: CGFloat] = [:]
-    /// One-way write of the editor's vertical scroll position. The
-    /// CalculatorPane reads this to offset the gutter so both columns
-    /// stay aligned during scroll.
-    @Binding var scrollY: CGFloat
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let tv = AutocompletingTextView()
-        tv.isRichText = false
-        tv.isEditable = true
-        tv.isSelectable = true
-        tv.allowsUndo = true
-        tv.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-        tv.textColor = NSColor(TallyTheme.text)
-        tv.insertionPointColor = NSColor(TallyTheme.accent)
-        tv.backgroundColor = NSColor(TallyTheme.background)
-        tv.drawsBackground = true
-        tv.delegate = context.coordinator
-        tv.textContainerInset = NSSize(width: 18, height: 14)
-        // Pin the editor's line height to match the gutter's row height
-        // exactly. Without this the editor uses the font's natural leading
-        // (~17pt at default size) while the gutter rows are 18pt — over a
-        // long document the two columns drift apart by ~1pt per line.
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.minimumLineHeight = 18
-        paragraph.maximumLineHeight = 18
-        tv.defaultParagraphStyle = paragraph
-        tv.typingAttributes = [
-            .font: tv.font!,
-            .foregroundColor: NSColor(TallyTheme.text),
-            .paragraphStyle: paragraph,
-        ]
-        tv.string = text
-        if let container = tv.textContainer {
-            container.lineFragmentPadding = 0
-        }
-
-        let scroll = NSScrollView()
-        scroll.documentView = tv
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = false
-        scroll.drawsBackground = true
-        scroll.backgroundColor = NSColor(TallyTheme.background)
-
-        context.coordinator.textView = tv
-        context.coordinator.installScrollObserver(on: scroll)
-        // Syntax-highlight `#` headers and `//` comments synchronously
-        // on each keystroke. Wiring via NSTextStorageDelegate runs the
-        // colour pass DURING the storage edit cycle, so the user never
-        // sees a brief flash of default-coloured text before it turns
-        // orange/grey.
-        tv.textStorage?.delegate = context.coordinator
-        if let storage = tv.textStorage {
-            Coordinator.applyLineColors(to: storage)
-        }
-        return scroll
-    }
-
-    func updateNSView(_ scroll: NSScrollView, context: Context) {
-        guard let tv = scroll.documentView as? AutocompletingTextView else { return }
-        if tv.string != text {
-            tv.string = text
-            // Bulk replacement bypasses the per-edit storage delegate
-            // path, so re-apply colours explicitly after a wholesale
-            // text swap (e.g. switching documents).
-            if let storage = tv.textStorage {
-                Coordinator.applyLineColors(to: storage)
-            }
-        }
-        applyPerLineSpacing(to: tv)
-        tv.recomputeSuggestion()
-    }
-
-    /// Walk the text storage line by line and stamp a paragraph style on
-    /// each one. Lines whose gutter row grew (multi-line METAR/TAF result)
-    /// get the extra height as `paragraphSpacing` — invisible empty space
-    /// below the line that keeps the editor's row in vertical sync with
-    /// the gutter.
-    private func applyPerLineSpacing(to tv: NSTextView) {
-        guard let storage = tv.textStorage else { return }
-        let fullText = storage.string as NSString
-        storage.beginEditing()
-        var lineIdx = 0
-        var loc = 0
-        let total = fullText.length
-        while loc <= total {
-            let lineRange = fullText.lineRange(for: NSRange(location: loc, length: 0))
-            let extra = lineExtraHeights[lineIdx] ?? 0
-            let p = NSMutableParagraphStyle()
-            p.minimumLineHeight = 18
-            p.maximumLineHeight = 18
-            p.paragraphSpacing = extra
-            storage.addAttribute(.paragraphStyle, value: p, range: lineRange)
-            lineIdx += 1
-            // Advance past this line; bail out on the trailing empty
-            // pseudo-line so we don't loop forever at EOF.
-            let newLoc = lineRange.location + lineRange.length
-            if newLoc == loc { break }
-            loc = newLoc
-        }
-        storage.endEditing()
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text, scrollY: $scrollY) }
-
-    final class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
-        let text: Binding<String>
-        let scrollY: Binding<CGFloat>
-        weak var textView: AutocompletingTextView?
-        private var scrollObserver: NSObjectProtocol?
-
-        init(text: Binding<String>, scrollY: Binding<CGFloat>) {
-            self.text = text
-            self.scrollY = scrollY
-        }
-
-        deinit {
-            if let obs = scrollObserver {
-                NotificationCenter.default.removeObserver(obs)
-            }
-        }
-
-        /// Hook NSClipView's bounds-changed signal — every scroll
-        /// (mouse wheel, trackpad, arrow keys that pull the cursor
-        /// out of view) updates the content view's bounds, which
-        /// we mirror back into SwiftUI so the gutter can follow.
-        func installScrollObserver(on scroll: NSScrollView) {
-            let clip = scroll.contentView
-            clip.postsBoundsChangedNotifications = true
-            scrollObserver = NotificationCenter.default.addObserver(
-                forName: NSView.boundsDidChangeNotification,
-                object: clip,
-                queue: .main
-            ) { [weak self] _ in
-                guard let self else { return }
-                let y = clip.bounds.origin.y
-                if abs(self.scrollY.wrappedValue - y) > 0.5 {
-                    self.scrollY.wrappedValue = y
-                }
-            }
-        }
-
-        func textDidChange(_ notification: Notification) {
-            guard let tv = notification.object as? AutocompletingTextView else { return }
-            text.wrappedValue = tv.string
-            tv.recomputeSuggestion()
-        }
-
-        func textViewDidChangeSelection(_ notification: Notification) {
-            guard let tv = notification.object as? AutocompletingTextView else { return }
-            tv.recomputeSuggestion()
-        }
-
-        // MARK: - NSTextStorageDelegate (line colouring)
-
-        /// Fired after each storage edit. We re-colour the affected
-        /// paragraph range — local enough to be cheap on every keystroke,
-        /// wide enough to catch multi-line paste / delete.
-        func textStorage(_ textStorage: NSTextStorage,
-                         didProcessEditing editedMask: NSTextStorageEditActions,
-                         range editedRange: NSRange,
-                         changeInLength delta: Int) {
-            // Only re-colour on character edits. Pure attribute edits
-            // (including our own colour additions below) shouldn't
-            // trigger another pass — that would either no-op or loop.
-            guard editedMask.contains(.editedCharacters) else { return }
-            Self.applyLineColors(to: textStorage)
-        }
-
-        /// Apply the line-colour rule across the entire storage:
-        ///   • `#` headers → accent (orange)
-        ///   • `//` comments → muted grey (dynamic for light/dark mode)
-        ///   • everything else → primary text colour
-        ///
-        /// Walks paragraph-by-paragraph and stamps `.foregroundColor`
-        /// on each line range. Cheap enough to run on every keystroke
-        /// for typical Tally documents.
-        static func applyLineColors(to storage: NSTextStorage) {
-            let fullText = storage.string as NSString
-            let total = fullText.length
-            guard total > 0 else { return }
-            let defaultColor = NSColor(TallyTheme.text)
-            let headerColor  = NSColor(TallyTheme.accent)
-            let commentColor = NSColor(TallyTheme.muted)
-            var loc = 0
-            while loc < total {
-                let lineRange = fullText.lineRange(for: NSRange(location: loc, length: 0))
-                let lineString = fullText.substring(with: lineRange)
-                let trimmed = lineString.trimmingCharacters(in: .whitespacesAndNewlines)
-                let colour: NSColor
-                if trimmed.hasPrefix("#") {
-                    colour = headerColor
-                } else if trimmed.hasPrefix("//") {
-                    colour = commentColor
-                } else {
-                    colour = defaultColor
-                }
-                storage.addAttribute(.foregroundColor, value: colour, range: lineRange)
-                let newLoc = lineRange.location + lineRange.length
-                if newLoc == loc { break }
-                loc = newLoc
-            }
-        }
-    }
-}
-
-private final class AutocompletingTextView: NSTextView {
+final class AutocompletingTextView: NSTextView {
 
     private var ghostSuggestion: String?
 
-    /// Recompute the suggestion based on the current text + cursor position.
     func recomputeSuggestion() {
         let cursor = selectedRange().location
         let suggestion = SuggestionEngine.suggest(in: string, cursor: cursor)
@@ -595,7 +287,6 @@ private final class AutocompletingTextView: NSTextView {
         let cursor = selectedRange().location
         guard cursor >= 0, cursor <= nsString.length else { return }
 
-        // Find the position immediately to the right of the cursor.
         let glyphIndex: Int
         if cursor < nsString.length {
             glyphIndex = layoutManager.glyphIndexForCharacter(at: cursor)
@@ -610,7 +301,6 @@ private final class AutocompletingTextView: NSTextView {
             fragment = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: nil)
             pointInFragment = layoutManager.location(forGlyphAt: glyphIndex)
         } else if layoutManager.numberOfGlyphs > 0 {
-            // End of buffer — anchor to the trailing edge of the last glyph.
             let lastGlyph = layoutManager.numberOfGlyphs - 1
             fragment = layoutManager.lineFragmentRect(forGlyphAt: lastGlyph, effectiveRange: nil)
             let lastLoc = layoutManager.location(forGlyphAt: lastGlyph)
@@ -633,7 +323,6 @@ private final class AutocompletingTextView: NSTextView {
         ]
         (suggestion as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: attrs)
 
-        // Hint chip just past the suggestion — "↩ to accept".
         let chipFont = NSFont.monospacedSystemFont(ofSize: 9, weight: .medium)
         let chipAttrs: [NSAttributedString.Key: Any] = [
             .font: chipFont,
@@ -648,14 +337,12 @@ private final class AutocompletingTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
-        // Only intercept keys when a suggestion is showing — otherwise let
-        // the editor behave normally.
         if ghostSuggestion != nil {
             switch event.keyCode {
-            case 36, 48:   // 36 = Return, 48 = Tab — accept the suggestion
+            case 36, 48:
                 acceptSuggestion()
                 return
-            case 53:       // Esc — dismiss
+            case 53:
                 ghostSuggestion = nil
                 needsDisplay = true
                 return
