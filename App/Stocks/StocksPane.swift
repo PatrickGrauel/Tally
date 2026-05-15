@@ -17,6 +17,9 @@ struct StocksPane: View {
     @State private var scorecard: DCAScorecard?
     @State private var budget: FMPClient.BudgetSnapshot?
     @State private var task: Task<Void, Never>?
+    /// Manage popover — the in-pane shortcut to the key / plan / usage
+    /// view, anchored to the footer status bar.
+    @State private var showManage = false
 
     /// Result-side error classification. Each case maps to a different
     /// UI shape: coverage-gap gets the calm "not in your plan" card,
@@ -359,27 +362,46 @@ struct StocksPane: View {
     }
 
     private var footerBar: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(monitor.dotColour)
-                .frame(width: 8, height: 8)
-            Text(monitor.label)
-            Spacer()
-            if let b = budget {
-                Text("\(b.callsToday)/\(b.callsLimit) calls today")
-                    .foregroundStyle(.secondary)
+        // The whole footer is clickable. It already answers the
+        // diagnostic question ("is my key working, how much budget left?")
+        // — making it the affordance for the action question ("how do I
+        // change the key / plan?") collapses a 6-step Settings detour
+        // into one click. Hover background hints clickability.
+        Button {
+            showManage.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(monitor.dotColour)
+                    .frame(width: 8, height: 8)
+                Text(monitor.label)
+                Spacer()
+                if let b = budget {
+                    Text("\(b.callsToday)/\(b.callsLimit) calls today")
+                        .foregroundStyle(.secondary)
+                }
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .padding(.vertical, 6)
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain)
         .background(.thinMaterial)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(TallyTheme.divider)
                 .frame(height: 0.5)
+        }
+        .popover(isPresented: $showManage, arrowEdge: .bottom) {
+            StocksManageView(fixedWidth: 380)
+                .padding(16)
+                .themedSheet()
         }
     }
 

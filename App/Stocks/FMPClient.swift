@@ -220,6 +220,11 @@ actor FMPClient {
             switch http.statusCode {
             case 401, 403:
                 throw FMPError.invalidAPIKey
+            case 429:
+                // FMP's own rate-limit response. We surface this even if
+                // Tally's local cap hasn't fired yet — defence in depth.
+                // The cap is a politeness budget; the 429 is the truth.
+                throw FMPError.rateLimitExhausted
             case 402:
                 if bodyString.contains("Special Endpoint") ||
                    bodyString.localizedCaseInsensitiveContains("not available under your current subscription") {
@@ -324,7 +329,7 @@ actor FMPClient {
         rollIfNewDay(now: Date())
         return BudgetSnapshot(
             callsToday: budget.callsToday,
-            callsLimit: Self.dailyCallsLimit,
+            callsLimit: dailyCallsLimit,
             bytesToday: budget.bytesToday,
             bytesLimit: Self.dailyBytesLimit,
             resetAt: budget.resetAt
@@ -337,10 +342,13 @@ actor FMPClient {
 
     // MARK: - Internals
 
-    /// Soft daily cap. FMP free tier is 250 calls/day — we stop at 240 so
-    /// retries and a refresh button click after an error don't push us over.
-    private static let dailyCallsLimit = 240
+    /// Daily-bytes cap. The call cap is plan-dependent and resolved
+    /// from UserDefaults via `FMPPlan.currentDailyCap()` so it tracks
+    /// the user's subscription tier instead of pinning everyone at the
+    /// free-tier limit.
     private static let dailyBytesLimit = 450 * 1024 * 1024   // 450 MB
+
+    private var dailyCallsLimit: Int { FMPPlan.currentDailyCap() }
     private static let logger = Logger(subsystem: "app.tally.Tally", category: "fmp")
     private static let host = "https://financialmodelingprep.com/stable"
 
@@ -404,7 +412,7 @@ actor FMPClient {
     }
 
     private var isBudgetExhausted: Bool {
-        budget.callsToday >= Self.dailyCallsLimit ||
+        budget.callsToday >= dailyCallsLimit ||
         budget.bytesToday >= Self.dailyBytesLimit
     }
 

@@ -25,14 +25,9 @@ struct SettingsView: View {
     @AppStorage("tally.panes.aviation")     private var enableAviation     = true
     @AppStorage("tally.panes.stocks")       private var enableStocks       = false
 
-    // Stocks — the API key field used to live in "Advanced", which hid
-    // the only step that makes the pane work behind a label that means
-    // "you probably don't need this". Now it sits in its own section
-    // directly under the Stocks toggle, visible only when Stocks is
-    // enabled.
-    @AppStorage("tally.stocks.fmpApiKey")   private var fmpApiKey: String = ""
-    @StateObject private var monitor = StocksConnectionMonitor.shared
-    @State private var budget: FMPClient.BudgetSnapshot?
+    // Stocks management UI lives in StocksManageView (shared with the
+    // pane's footer popover). The bindings flow into UserDefaults so
+    // both surfaces stay in sync — no local state needed here.
 
     var body: some View {
         Form {
@@ -115,43 +110,15 @@ struct SettingsView: View {
             }
 
             // MARK: Stocks — only appears when the Stocks pane is on.
-            // Houses the FMP API key + the live connection status + the
-            // daily budget mirror, so the user can see at a glance
-            // whether the data source is healthy without bouncing into
-            // the pane.
+            // Same management surface as the in-pane popover; both are
+            // bindings on the same UserDefaults so they stay in sync.
             if enableStocks {
                 Section {
-                    LabeledContent("FMP API key") {
-                        SecureField("", text: $fmpApiKey, prompt: Text("Paste your key"))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 260)
-                            .onChange(of: fmpApiKey) { _, new in
-                                monitor.reflectKeyChange(newKey: new)
-                                Task { await FMPClient.shared.setAPIKey(new.isEmpty ? nil : new) }
-                            }
-                    }
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(monitor.dotColour)
-                            .frame(width: 8, height: 8)
-                        Text(monitor.label)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let b = budget {
-                        LabeledContent("Today's usage") {
-                            Text("\(b.callsToday)/\(b.callsLimit) calls · \(String(format: "%.1f MB / %.0f MB", Double(b.bytesToday) / 1_048_576, Double(b.bytesLimit) / 1_048_576))")
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Text("Free plan: a curated set of US-listed large-caps, around 50 analyses/day.  •  Starter ($14/mo): full S&P 500.  •  Premium: international markets. [See plans →](https://site.financialmodelingprep.com/developer/docs/pricing)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    StocksManageView(titleVisible: false)
                 } header: {
                     Text("Stocks")
                 } footer: {
-                    Text("Your key stays on this Mac. Tally only sends it to financialmodelingprep.com when you analyse a ticker. [Get a free key →](https://site.financialmodelingprep.com/developer/docs)")
+                    Text("Your key stays on this Mac. Tally only sends it to financialmodelingprep.com when you analyse a ticker.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -179,11 +146,6 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .frame(width: 480, height: 540)
-        .task {
-            // Mirror the daily budget into Settings so the user can see
-            // how their FMP allowance is doing without opening Stocks.
-            budget = await FMPClient.shared.budgetSnapshot()
-        }
         // `themedSheet` applies TallyTheme.background AND the user's
         // light/dark preference. Without it the Settings window ignores
         // the Appearance picker the user just changed.

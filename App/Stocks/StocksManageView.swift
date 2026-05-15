@@ -1,0 +1,153 @@
+import SwiftUI
+import AppKit
+
+/// Self-contained "manage Stocks" surface. Same content lives in Settings →
+/// Stocks (for the user who navigates to Settings first) and in the pane's
+/// footer popover (for the user who's already in Stocks and doesn't want
+/// to leave). Both surfaces share this view; the bindings flow into
+/// UserDefaults via `@AppStorage` so they stay in sync.
+///
+/// The view answers four questions in one card:
+///   1. What key am I using?                                  (SecureField)
+///   2. Which plan am I on, and what's my daily cap?          (Plan dropdown)
+///   3. Is it working right now?                              (status dot + label)
+///   4. How much have I used today, and what does it cost?    (usage + call-cost note)
+struct StocksManageView: View {
+    @AppStorage("tally.stocks.fmpApiKey")     private var apiKey: String = ""
+    @AppStorage(FMPPlan.storageKey)           private var planRaw: String = FMPPlan.free.rawValue
+    @AppStorage(FMPPlan.customCapKey)         private var customCap: Int = 240
+    @StateObject private var monitor = StocksConnectionMonitor.shared
+    @State private var budget: FMPClient.BudgetSnapshot?
+
+    /// When embedded in a popover we want a fixed width; when used as a
+    /// Settings section we let the form decide. Caller picks.
+    var fixedWidth: CGFloat? = nil
+    var titleVisible: Bool = true
+
+    private var plan: FMPPlan {
+        FMPPlan(rawValue: planRaw) ?? .free
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if titleVisible {
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(TallyTheme.accent)
+                    Text("Stocks data source")
+                        .font(.headline)
+                }
+            }
+
+            // Key
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FMP API key").font(.caption).foregroundStyle(.secondary)
+                SecureField("", text: $apiKey, prompt: Text("Paste your FMP key"))
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: apiKey) { _, new in
+                        monitor.reflectKeyChange(newKey: new)
+                        Task { await FMPClient.shared.setAPIKey(new.isEmpty ? nil : new) }
+                    }
+            }
+
+            // Plan
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Plan").font(.caption).foregroundStyle(.secondary)
+                Picker("", selection: Binding(
+                    get: { plan },
+                    set: { planRaw = $0.rawValue
+                        Task { await refreshBudget() }
+                    }
+                )) {
+                    ForEach(FMPPlan.allCases) { p in
+                        Text(p.displayName).tag(p)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                if plan == .custom {
+                    HStack(spacing: 6) {
+                        Text("Cap").font(.caption).foregroundStyle(.secondary)
+                        TextField("", value: $customCap, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                            .onChange(of: customCap) { _, _ in
+                                Task { await refreshBudget() }
+                            }
+                        Text("calls/day").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Status
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(monitor.dotColour)
+                    .frame(width: 8, height: 8)
+                Text(monitor.label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Usage
+            if let b = budget {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Today's usage")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(b.callsToday) / \(b.callsLimit) calls · \(byteString(b.bytesToday)) / \(byteString(b.bytesLimit))")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Divider()
+
+            // Honest accounting — how the call cost actually breaks down.
+            // Reads like a fact sheet, not marketing.
+            VStack(alignment: .leading, spacing: 3) {
+                infoLine("Each full analysis costs **5 calls** (income statement, balance sheet, cash flow, key metrics, profile).")
+                infoLine("A coverage-gap lookup (ticker not in your plan) costs **1 call** after the pre-flight check.")
+                infoLine("Cached tickers are **free for 7 days** — re-running KO tomorrow is zero calls.")
+                infoLine("Tally enforces this cap **locally**. Even if your FMP plan allows more, Tally won't let any single day cost more than this number — a hard guardrail against runaway usage, regardless of plan.")
+            }
+
+            HStack(spacing: 12) {
+                Link(destination: URL(string: "https://site.financialmodelingprep.com/developer/docs")!) {
+                    Label("Get a free key", systemImage: "arrow.up.right.square")
+                        .font(.caption)
+                }
+                Link(destination: URL(string: "https://site.financialmodelingprep.com/developer/docs/pricing")!) {
+                    Label("See plans", systemImage: "arrow.up.right.square")
+                        .font(.caption)
+                }
+                Spacer()
+            }
+        }
+        .padding(.vertical, 4)
+        .frame(width: fixedWidth)
+        .task { await refreshBudget() }
+        .onChange(of: monitor.status) { _, _ in
+            Task { await refreshBudget() }
+        }
+    }
+
+    private func refreshBudget() async {
+        let snap = await FMPClient.shared.budgetSnapshot()
+        await MainActor.run { budget = snap }
+    }
+
+    private func byteString(_ bytes: Int) -> String {
+        String(format: "%.1f MB", Double(bytes) / 1_048_576)
+    }
+
+    private func infoLine(_ markdown: String) -> some View {
+        Text(.init(markdown))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
