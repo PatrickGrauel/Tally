@@ -4,8 +4,9 @@ import AppKit
 /// Self-contained "manage Stocks" surface. Same content lives in Settings →
 /// Stocks (for the user who navigates to Settings first) and in the pane's
 /// footer popover (for the user who's already in Stocks and doesn't want
-/// to leave). Both surfaces share this view; the bindings flow into
-/// UserDefaults via `@AppStorage` so they stay in sync.
+/// to leave). Both surfaces share this view; the API-key binding flows into
+/// the Keychain via `@KeychainStored`, the plan/cap bindings flow into
+/// UserDefaults via `@AppStorage`. Both stay in sync across surfaces.
 ///
 /// The view answers four questions in one card:
 ///   1. What key am I using?                                  (SecureField)
@@ -13,7 +14,7 @@ import AppKit
 ///   3. Is it working right now?                              (status dot + label)
 ///   4. How much have I used today, and what does it cost?    (usage + call-cost note)
 struct StocksManageView: View {
-    @AppStorage("tally.stocks.fmpApiKey")     private var apiKey: String = ""
+    @KeychainStored("tally.stocks.fmpApiKey") private var apiKey
     @AppStorage(FMPPlan.storageKey)           private var planRaw: String = FMPPlan.free.rawValue
     @AppStorage(FMPPlan.customCapKey)         private var customCap: Int = 240
     @StateObject private var monitor = StocksConnectionMonitor.shared

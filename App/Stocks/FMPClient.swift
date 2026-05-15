@@ -385,7 +385,7 @@ actor FMPClient {
         }
         self.budget = Self.loadBudget()
         self.cache = Self.loadCache(at: self.cacheURL)
-        self.apiKey = UserDefaults.standard.string(forKey: "tally.stocks.fmpApiKey")
+        self.apiKey = KeychainStorage.get("tally.stocks.fmpApiKey")
     }
 
     private func makeURL(endpoint: Endpoint, symbol: String, apiKey: String) -> URL {

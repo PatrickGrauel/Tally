@@ -8,7 +8,7 @@ import AppKit
 struct StocksPane: View {
     @AppStorage("tally.stocks.lastTicker") private var lastTicker: String = ""
     @AppStorage("tally.stocks.recentTickers") private var recentTickersRaw: String = ""
-    @AppStorage("tally.stocks.fmpApiKey") private var apiKey: String = ""
+    @KeychainStored("tally.stocks.fmpApiKey") private var apiKey
     // Observe the plan + custom-cap settings so the footer's daily-cap
     // number reflects the user's current plan in real time. Without
     // this, changing the plan in the manage popover refreshes that

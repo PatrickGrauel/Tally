@@ -8,6 +8,16 @@ struct TallyApp: App {
     @Environment(\.openWindow) private var openWindow
     @AppStorage("tally.alwaysOnTop") private var alwaysOnTop: Bool = false
 
+    init() {
+        // One-shot migration of secrets out of UserDefaults into the
+        // Keychain. Each call is a no-op once the corresponding key
+        // already lives in the Keychain. Runs synchronously on app
+        // launch so the rest of the app reads from the new home from
+        // the very first frame.
+        KeychainStorage.migrateFromUserDefaults("tally.stocks.fmpApiKey")
+        KeychainStorage.migrateFromUserDefaults("tally.fx.openExchangeRatesKey")
+    }
+
     var body: some Scene {
         WindowGroup("Tally", id: "main") {
             ContentView()

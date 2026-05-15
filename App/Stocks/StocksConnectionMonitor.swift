@@ -25,7 +25,7 @@ final class StocksConnectionMonitor: ObservableObject {
     @Published var status: Status
 
     private init() {
-        let key = UserDefaults.standard.string(forKey: "tally.stocks.fmpApiKey") ?? ""
+        let key = KeychainStorage.get("tally.stocks.fmpApiKey") ?? ""
         self.status = key.isEmpty ? .noKey : .unused
     }
 

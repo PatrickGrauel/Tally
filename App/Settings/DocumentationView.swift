@@ -21,6 +21,7 @@ struct DocumentationView: View {
         case docs      = "Documents"
         case menubar   = "Menu bar"
         case missing   = "What's missing"
+        case safety    = "Safety & disclaimer"
         var id: String { rawValue }
     }
 
@@ -72,6 +73,7 @@ struct DocumentationView: View {
         case .docs:      docsSection
         case .menubar:   menubarSection
         case .missing:   missingSection
+        case .safety:    safetySection
         }
     }
 
@@ -299,6 +301,32 @@ struct DocumentationView: View {
                 ["Right-click", "Open / Preferences… / Menu Bar Only Mode / Quit."],
                 ["Menu Bar Only Mode", "Hides the Dock icon. Tally becomes a menu-bar-only app — reopen via the icon."]
             ])
+        }
+    }
+
+    private var safetySection: some View {
+        Doc(title: "Safety & disclaimer") {
+            Doc_.paragraph("**Read this before using Tally for any aviation-related purpose.** This section mirrors `DISCLAIMER.md` in the project repository — the full version of both lives at the source URL listed in the App Store description.")
+
+            Doc_.paragraph("**Tally is not certified, approved, audited, or operationally validated for flight planning, navigation, or operation of an aircraft.** It is an independent, hobbyist macOS application. Its aviation features — METAR / TAF / ATIS retrieval, E6B calculations, density altitude, pressure altitude, weight & balance — are provided for **situational awareness and study only**.")
+
+            Doc_.paragraph("**1 · No warranty.** Tally is provided AS IS, without warranty of any kind, express or implied. The MIT License's warranty disclaimer applies in full.")
+
+            Doc_.paragraph("**2 · Weather and aeronautical data are third-party.** METAR, TAF, ATIS, and any other aeronautical data displayed by Tally are retrieved from third-party providers (aviationweather.gov, datis.clowd.io). Tally has no control over their accuracy, completeness, latency, or availability. Reports may be delayed beyond their nominal issuance cadence, cached locally for several minutes after their original observation time, truncated or partially decoded, completely unavailable when the upstream service is offline, or geographically limited.")
+
+            Doc_.paragraph("**Always verify weather and aeronautical information against an official, regulator-recognised source** (FAA Aviation Weather Center, EUROCONTROL, your national meteorological service, your operator's flight following service, or equivalent) before and during every flight.")
+
+            Doc_.paragraph("**3 · Calculations are generic estimates.** E6B, density altitude, fuel-burn, weight & balance, runway-wind, and atmospheric calculations are computed from standard models (ISA / ICAO Standard Atmosphere, generic aerodynamic relationships, simplified fuel-flow assumptions). They do not account for your specific aircraft's actual performance, certified envelope, configuration, equipment status, age, mechanical condition, or any operator-specific variation. Always cross-check every calculation against your aircraft's POH / AFM; where any difference exists, the POH/AFM governs.")
+
+            Doc_.paragraph("**4 · Not a substitute for official sources.** Tally is not a substitute for official aviation weather products, NOTAMs and aeronautical information publications, flight planning systems certified for the operation being undertaken (Part 91 vs Part 121/135 in the U.S.; NCO vs CAT in the EU), manufacturer-provided performance data, or aircraft-specific weight & balance worksheets approved by your operator or competent authority.")
+
+            Doc_.paragraph("**5 · Pilot in Command responsibility.** The PIC is and remains solely responsible for the safe planning, conduct, and termination of the flight — preflight action, weather assessment, fuel planning, weight & balance, navigation, performance computation, and operational decision-making — per the applicable civil aviation regulations of the operating state (14 CFR § 91.3 / § 91.103 / § 91.13 in the U.S.; Commission Regulation (EU) No 965/2012 and SERA in the EU; or the equivalent). Use of Tally does not relieve the PIC of any regulatory, operational, or moral obligation.")
+
+            Doc_.paragraph("**6 · No liability.** In no event shall the authors, contributors, copyright holders, or distributors of Tally be liable for any direct, indirect, incidental, special, exemplary, punitive, or consequential damages — including, without limitation, loss of life, personal injury, bodily harm, property damage, loss of an aircraft, loss of cargo, regulatory action, loss of license, loss of revenue, or loss of business — arising from, related to, or in connection with the use of, or the inability to use, this software.")
+
+            Doc_.paragraph("**7 · Stocks scorecard — not financial advice.** The optional Stocks pane scores a public company against one specific quantitative framework (Mary Buffett & David Clark's \"Durable Competitive Advantage\" rubric). It is not investment advice. A high or low score is not a buy or sell recommendation. The framework is opinionated and produces nonsensical results for financial-sector companies, recent IPOs, REITs, and unusual capital structures. Do your own due diligence and consult a licensed financial advisor before making any investment decision.")
+
+            Doc_.paragraph("**8 · Acceptance.** Installing or using the aviation features of Tally constitutes your acceptance of this disclaimer in addition to the MIT License and the End User License Agreement.")
         }
     }
 

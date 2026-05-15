@@ -133,7 +133,7 @@ final class AppModel: ObservableObject {
     func bootstrapLiveData() async {
         // Pick an FX source. OpenExchangeRates if the user has a key,
         // Frankfurter (free ECB rates) otherwise.
-        let oxrKey = UserDefaults.standard.string(forKey: "tally.fx.openExchangeRatesKey") ?? ""
+        let oxrKey = KeychainStorage.get("tally.fx.openExchangeRatesKey") ?? ""
         let source: FXService.Source
         if !oxrKey.isEmpty {
             fxSourceLabel = "OpenExchangeRates"
