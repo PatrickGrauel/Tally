@@ -426,8 +426,11 @@ final class DividerStrip: NSView {
             width: 1,
             height: bounds.height
         )
+        // Light grey at rest, slightly brighter grey on hover — never
+        // a colour-tint, so the divider reads as chrome, not an
+        // active element.
         let colour = isHovering
-            ? NSColor(TallyTheme.accent)
+            ? NSColor(TallyTheme.muted)
             : NSColor(TallyTheme.muted).withAlphaComponent(0.45)
         colour.setFill()
         line.fill()
