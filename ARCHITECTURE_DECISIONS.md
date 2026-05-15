@@ -242,3 +242,76 @@ The loop is safe because attribute changes (paragraph styles) don't trigger `tex
 - The color pass runs on every keystroke — measurably cheap for Tally-sized docs (we walk the text once per edit, applying `.foregroundColor` per line range).
 - A pure attribute edit (including our own color application) does NOT trigger `.editedCharacters`, so we don't recurse.
 - The same coloring logic also runs in `updateNSView` for bulk text replacements (document switch) where the storage delegate path doesn't fire.
+
+---
+
+## ADR-015: Custom HStack chrome instead of the SwiftUI window toolbar
+
+**Status:** Accepted (superseded the `.toolbar { … }` approach)
+
+**Context.** The visual mockup called for a clean, bubble-free toolbar: pane picker on the left, a quiet "Tally" wordmark, +/hamburger on the right. SwiftUI's `WindowGroup` toolbar on macOS Sonoma+ wraps every `ToolbarItem` in a capsule background — visible whether the item is hovered or idle. Multiple placement options (`.principal`, `.primaryAction`, `.navigation`) all exhibit it. `.menuStyle(.borderlessButton)` suppresses the *menu's* chrome but the toolbar container itself still applies a hover/idle wash. There is no public API to disable the per-item background.
+
+**Decision.** Leave the native toolbar. Hide the title bar via `.windowStyle(.hiddenTitleBar)`, drop the `.toolbar { … }` block, and build a custom `HStack` chrome inside the window content. Traffic lights still overlay the top-left corner (macOS preserves their geometry even when the title bar is hidden); the HStack uses 78pt left padding to clear them and `.ignoresSafeArea(.container, edges: .top)` to extend up into the title-bar zone so its items align horizontally with the traffic lights.
+
+**Consequences.**
+- Complete visual control. Pane picker, "Tally" wordmark, and action buttons render as plain views with no system-applied backgrounds.
+- Lost the free NSToolbar drag affordance. The hidden title bar still provides drag from its preserved geometry (the area where the title text would have been), so users can still drag the window from the top — but the chrome HStack itself isn't a drag region. Acceptable: instinct is to drag from the very top edge.
+- Lost NSToolbar's overflow / customisation behaviours. Tally's chrome is small enough that this doesn't matter; would be a problem if we ever wanted user-reorderable items.
+- Rejected: an `NSViewRepresentable` wrapping a raw `NSToolbar`. More code, would still inherit the capsule treatment when items are SwiftUI views.
+
+---
+
+## ADR-016: METAR Map render pipeline — three serial gates
+
+**Status:** Accepted
+
+**Context.** The METAR Map shows up to ~48 000 airports on MapKit. Without limits, panning at country zoom would queue dozens of bulk METAR fetches per second and render 10 000+ pin views simultaneously — both lock the UI thread and rate-limit aviationweather.gov.
+
+**Decision.** Three gates run in series on every camera change, bounding pin count by construction at every zoom:
+
+1. **Tier × zoom.** Large airports only at world span, +medium at country, +small at regional/local. Tier is read from the OurAirports `type` column; the cutoff for each tier is keyed to MapKit's `span` in degrees.
+2. **Viewport bbox cull.** A 5° grid index over `airports.csv` returns only airports inside the visible bbox. Built once at load (O(N), ~150 ms), queried per camera change (O(cells × pins-per-cell), effectively constant per visible region at airport density).
+3. **Render cap.** Sort the surviving set by tier and cap at 300 pins. Anything past the cap is silently dropped.
+
+The bulk METAR fetch (`metarsInBBox(...)`) only fires below the 25° span cutoff and is debounced 300 ms after the user stops panning. Bbox results warm the per-station cache as a side effect, so opening any airport in the standalone METAR pane is instant.
+
+**Consequences.**
+- Predictable performance at every zoom. Pin count is mathematically bounded, not "usually fine."
+- Upstream API sees at most one bulk request per pan-stop, not one per frame.
+- The 300-pin cap is silent — there is no "showing 300 of 1247" indicator. Tier sorting biases toward the airports a pilot would search for, so the dropped ones are typically small/uncontrolled fields. We'd add an indicator if users started complaining about specific missing airports.
+- Rejected: clustering pins below a density threshold. MapKit's built-in clustering is per-annotation-view and would still require us to instantiate all annotations to ask it to cluster them — defeating the point. Filter first, render second.
+
+---
+
+## ADR-017: Case-insensitive user variables via a Proxy on the JS scope
+
+**Status:** Accepted
+
+**Context.** math.js looks up identifiers via property access on the eval scope. By default, `Total_price` and `total_price` are two distinct keys in the scope object — the user writes `Total_price = 100`, then types `total_price + 50` and gets "Undefined symbol total_price". Users mix cases by accident often enough that this read as a bug, not a feature. The aviation user base in particular favours mixed-case identifiers (`Rent`, `Mortgage`, `Total_fuel`) and would re-reference the same value with whatever case felt natural per line.
+
+**Decision.** Wrap the eval scope in a JavaScript `Proxy` that lowercases string keys on every `get`, `set`, `has`, `deleteProperty`, `ownKeys`, and `getOwnPropertyDescriptor`. User-defined names route through the proxy; math.js's built-in symbols (`pi`, `e`, `sin`, `cos`, …) live in math.js's own symbol table and are unaffected. Implementation in `JS/entry.js` is a `makeScope()` helper used at startup and on `tally.resetScope()`.
+
+**Consequences.**
+- Single point of normalisation. All scope access routes through the same trap, so no future caller can bypass it. `Total_price = 100; total_price` resolves to 100; `Total_price = 100; total_price = 42; Total_price` returns 42 (same slot, second write wins).
+- Symbol keys (non-string) pass through unchanged — internal `Reflect` / `Symbol` use isn't broken.
+- Rejected: lowercase-rewrite in the Swift preprocessor. The preprocessor parses tokens without knowing which are variables vs units vs keywords; lowercasing them all would corrupt units like `km/h` or keywords like `in`/`to`/`as`. The JS scope sees only the names that survive parsing as identifiers, which is exactly the set we want to normalise.
+- Trade-off: a user who deliberately treated `Total` and `total` as two separate variables (which arguably no one does) now sees them collapsed into one. Three regression tests cover write-then-shuffle-case, snake_case shuffle, and reassign-across-cases.
+
+---
+
+## ADR-018: Composite aviation commands return one LineResult, not many
+
+**Status:** Accepted
+
+**Context.** `briefing EDMA` and `altitude EDMA` are composite commands. `briefing` produces METAR + TAF + RWY + ALT for an airport; `altitude` produces elevation + PA + DA. Each component has its own freshness story — a fresh METAR can sit next to a stale TAF. The natural UI for that would expose four annotations per briefing (one per kind), each with its own age and tone — but the engine's per-line invariant is `1 input line → 1 LineResult`.
+
+**Decision.** Composite handlers return one `LineResult` per input line. The composite's `value` is a multi-line string containing every section stacked vertically; the `annotation` carries a single label of the form `METAR 12m · TAF 3h` and the worst tone across the underlying components.
+
+**Consequences.**
+- The engine's per-line invariant survives. Renderer (gutter, alignment, freshness colouring) didn't need changes.
+- Per-kind ages are still visible in the annotation label, so a pilot can see at a glance that the METAR is fresh but the TAF is stale. The worst-tone colour communicates "something here is stale" without prose; the kind-named ages say which.
+- Per-section freshness *colour* is lost — the body text of the METAR section and the TAF section both render in the same body colour, even when their tones differ. Mitigated by the explicit kind-named ages.
+- Rejected: returning `[LineResult]` from a single input line. Two routes considered:
+  - Expand the user's text to four lines on the fly — bad UX, changes what the user typed.
+  - Have the gutter renderer expand a special "composite" result into N rows — invasive changes to the editor/gutter coupling we already nailed down in ADR-009/010, with bidirectional layout consequences.
+  Both costs outweighed the per-section colour benefit.

@@ -10,10 +10,14 @@ A native macOS calculator built for pilots. A natural-language scratchpad on one
 - Currency & crypto: `100 EUR in USD`, `1 BTC in USD` (live rates)
 - Dates: `days between 2024-01-15 and today`, `2026-12-25 - 30 days`, `age 1990-03-15`
 - Timezones: `Berlin time`, `1430 Zulu in HKT`, `now in Tokyo + 2h`
-- Variables: `rent = 1450 EUR`, then `rent * 12`
+- Variables: `rent = 1450 EUR`, then `rent * 12`. Names are case-insensitive — `Total_price` and `total_price` are the same variable.
 
 **Aviation**
-- **METAR / TAF / ATIS** — type `METAR EDDM` and get the live report inline with a freshness indicator (fresh / stale / outdated based on each report's actual issuance cadence).
+- **METAR / TAF / ATIS** — type `METAR EDDM`, `TAF KSFO`, or `ATIS KJFK` and get the live report inline with a freshness indicator (fresh / stale / outdated based on each report's actual issuance cadence). The METAR line auto-appends a wind-based runway recommendation: `expect RWY 36R · Hw 11 (G21) · Xc 2 (G4)`.
+- **`altitude EDDM`** — field elevation + pressure altitude + density altitude, derived from the cached METAR's QNH and OAT. Multi-station works: `altitude EDDM EDMA KJFK`.
+- **`briefing EDMA`** — METAR + TAF + every runway (wind-favoured marked `★`) + altitudes, stacked. One command for the full pre-flight scan; annotation surfaces the worst freshness across the underlying reports.
+- **`RWY EDDM`** — every runway with length, surface, and true heading. **`sun EDDM`** — sunrise, sunset, civil-twilight end for today.
+- **METAR Map** — pan a world map of airports colour-coded by flight category (VFR / MVFR / IFR / LIFR). Click any pin for the decoded METAR. Tier-aware density (large airports only at world span, +medium at country, +small at regional) keeps the surface responsive at every zoom.
 - **E6B** — wind triangle, density altitude, runway crosswind/headwind component, top-of-descent, fuel.
 - **Weight & balance** — saved per-aircraft profiles.
 
@@ -109,7 +113,7 @@ The math.js JS bundle at `Packages/TallyEngine/Sources/TallyEngine/Resources/mat
 
 ## Architecture
 
-- `App/` — SwiftUI macOS shell. `Calculator/`, `Aviation/`, `Finance/`, `Stocks/`, `Timezone/`, `Settings/`, plus the menu bar controller.
+- `App/` — SwiftUI macOS shell. `Calculator/`, `Aviation/`, `Finance/`, `Stocks/`, `Timezone/`, `Map/` (METAR map), `Settings/`, plus the menu bar controller.
 - `App/Stocks/` — DCA scoring engine, FMP API client (on-disk cache + UTC-aligned daily call budget + plan-aware hard cap), drill-down chart canvas with Buffett-rubric threshold bands, and the radar/sparkline/manage-popover UI.
 - `Packages/TallyEngine` — `JSContext` + math.js bundle + a Swift preprocessor for natural-language sugar (`5% off $40`, `$20 in eur`, `today + 2 weeks`, `sum`, `prev`) + host bridges for timezone / FX / crypto / aviation / METAR cache.
 - `Packages/TallyAviation` — pure-Swift E6B math, weight & balance, atmosphere model, METAR/TAF parser.
