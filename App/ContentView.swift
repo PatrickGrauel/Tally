@@ -377,18 +377,6 @@ struct ContentView: View {
                     .accessibilityValue(selection.rawValue)
                 }
 
-                // "Tally" centered in the toolbar — rendered in the
-                // default title weight (semibold, matching the native
-                // window title) and half-translucent so the wordmark
-                // reads as a quiet anchor rather than competing with
-                // the active pane.
-                ToolbarItem(placement: .principal) {
-                    Text("Tally")
-                        .fontWeight(.semibold)
-                        .opacity(0.5)
-                        .accessibilityHidden(true)
-                }
-
                 // Calculator-specific actions sit at the top-right of the
                 // window toolbar, on the same row as the traffic lights and
                 // the pane-picker glyph on the left. Both are wrapped in
@@ -437,6 +425,20 @@ struct ContentView: View {
                             DocumentsPopover(store: documents, isPresented: $showDocsPopover)
                         }
                     }
+                }
+
+                // "Tally" wordmark anchored at the far-right end of the
+                // toolbar. Orange (`TallyTheme.accent`) at half opacity
+                // so it reads as a quiet brand mark, not a button.
+                // `.primaryAction` placement avoids the capsule
+                // background that `.principal` applies. Declared last
+                // so it sits to the right of the +/hamburger actions.
+                ToolbarItem(placement: .primaryAction) {
+                    Text("Tally")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TallyTheme.accent)
+                        .opacity(0.5)
+                        .accessibilityHidden(true)
                 }
             }
     }

@@ -164,7 +164,14 @@ struct CalculatorPane: View {
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
             let paragraph = NSMutableParagraphStyle()
-            paragraph.alignment = .right
+            // Numeric / unit results align to the right column edge so the
+            // last digit lines up with every other line (Numi-style). Weather
+            // text instead aligns to the *left* of the result column so the
+            // first token of every line (METAR ID, FM/BECMG/TEMPO change
+            // groups, freshness annotation) flushes to the same x — matching
+            // the canonical aviation-weather paper format and keeping
+            // PROB30/TEMPO/BECMG groups readable across a wrap.
+            paragraph.alignment = isWeather ? .left : .right
             paragraph.lineBreakMode = .byWordWrapping
             for (idx, line) in lines.enumerated() {
                 let lineAttr = NSMutableAttributedString(string: line)
@@ -213,7 +220,11 @@ struct CalculatorPane: View {
                           value: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular),
                           range: range)
         let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .right
+        // Mirror the body alignment: weather lines render flush-left
+        // inside the result column, so the freshness label sits flush
+        // with them. Non-weather annotations keep the right-aligned
+        // Numi-style behavior.
+        paragraph.alignment = isWeatherText(display(r)) ? .left : .right
         attr.addAttribute(.paragraphStyle, value: paragraph, range: range)
         let colour: NSColor
         switch a.tone {
