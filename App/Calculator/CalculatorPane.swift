@@ -397,13 +397,16 @@ struct CalculatorPane: View {
         )
     }
 
-    /// True when the result text looks like a METAR / TAF / SPECI. We
-    /// gate the vis + ceiling highlights on this so the 4-digit
+    /// True when the result text looks like a METAR / TAF / SPECI / ATIS.
+    /// We gate the vis + ceiling highlights on this so the 4-digit
     /// visibility regex doesn't accidentally repaint values like
     /// "2026" (year strings) or "4309M" (share counts) in arbitrary
-    /// calculator results.
+    /// calculator results. Also drives flush-left alignment of the
+    /// result column so multi-line weather reports read like the
+    /// canonical paper format instead of cascading toward the right.
     private static func isWeatherText(_ s: String) -> Bool {
-        s.hasPrefix("METAR ") || s.hasPrefix("TAF ") || s.hasPrefix("SPECI ")
+        s.hasPrefix("METAR ") || s.hasPrefix("TAF ") ||
+        s.hasPrefix("SPECI ") || s.hasPrefix("ATIS ")
     }
 
     private static func display(_ r: LineResult) -> String {

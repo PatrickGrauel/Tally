@@ -18,6 +18,11 @@ struct TallyApp: App {
                 .background(WindowOpenerBridge())
         }
         .windowResizability(.contentSize)
+        // Hide the native title bar so the toolbar — which on Sonoma+
+        // wraps each item in a capsule background — disappears.
+        // Traffic lights still overlay the content's top-left corner;
+        // ContentView's custom chrome bar leaves padding for them.
+        .windowStyle(.hiddenTitleBar)
 
         Settings {
             SettingsView()

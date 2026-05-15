@@ -284,16 +284,12 @@ struct ContentView: View {
     }
 
     var body: some View {
-        paneContent
-            // Suppress the auto-rendered title text; a principal toolbar
-            // item below draws "Tally" with custom typography so it matches
-            // the SHEET chrome label. The WindowGroup("Tally") name still
-            // surfaces in the Window menu / Dock / app switcher.
-            .navigationTitle("")
+        VStack(spacing: 0) {
+            customChrome
+            paneContent
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(TallyTheme.background.ignoresSafeArea())
-            .toolbarBackground(TallyTheme.background, for: .windowToolbar)
-            .toolbarBackground(.visible, for: .windowToolbar)
             .preferredColorScheme(colorScheme(for: appearance))
             .environmentObject(calculatorBridge)
             .task { await model.bootstrapLiveData() }
@@ -323,124 +319,126 @@ struct ContentView: View {
                     selection = .calculator
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    Menu {
-                        ForEach(Array(visiblePanes.enumerated()), id: \.element) { idx, pane in
-                            Button {
-                                selection = pane
-                            } label: {
-                                // Keep the pane's icon visible AND mark the
-                                // current selection — replacing the icon with
-                                // a checkmark robbed the menu of the at-a-
-                                // glance scan that the icons enable.
-                                HStack(spacing: 8) {
-                                    Image(systemName: pane.icon)
-                                    Text(pane.rawValue)
-                                    Spacer()
-                                    if pane == selection {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(TallyTheme.accent)
-                                    }
-                                }
-                            }
-                            // ⌘1..⌘9 quick-switch — only bind on indices the
-                            // user can actually press; saves an Apple-flag
-                            // collision on ⌘0.
-                            .keyboardShortcut(idx < 9 ? KeyEquivalent(Character("\(idx + 1)")) : .return,
-                                              modifiers: idx < 9 ? .command : [.command, .option])
-                        }
-                    } label: {
-                        // Show the current pane's icon so the toolbar reflects
-                        // where you are. Calculator stays on the brand glyph;
-                        // every other pane uses its SF symbol.
-                        Group {
-                            if selection == .calculator {
-                                Image(nsImage: TallyGlyph.nsImage(
-                                    size: 18,
-                                    color: NSColor(TallyTheme.accent)
-                                ))
-                                .renderingMode(.original)
-                            } else {
-                                Image(systemName: selection.icon)
-                                    .imageScale(.large)
-                                    .foregroundStyle(TallyTheme.text)
-                            }
-                        }
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .help("Switch pane — currently \(selection.rawValue)")
-                    .accessibilityLabel("Switch pane")
-                    .accessibilityValue(selection.rawValue)
-                }
+    }
 
-                // Calculator-specific actions sit at the top-right of the
-                // window toolbar, on the same row as the traffic lights and
-                // the pane-picker glyph on the left. Both are wrapped in
-                // a `Menu` with `.menuStyle(.borderlessButton)` so they
-                // inherit the same minimal chrome the pane glyph uses,
-                // rather than the heavy "glass capsule" that `.primaryAction`
-                // Button items get by default.
+    /// Custom top chrome bar. Replaces the native SwiftUI toolbar — which
+    /// on Sonoma+ wraps every item in a hover/idle capsule background.
+    /// Sits directly under the (hidden) title bar; left padding clears the
+    /// traffic-light overlay.
+    private var customChrome: some View {
+        HStack(spacing: 12) {
+            panePicker
+            Text("Tally")
+                .fontWeight(.semibold)
+                .foregroundStyle(TallyTheme.accent)
+                .opacity(0.5)
+                .accessibilityHidden(true)
+
+            Spacer(minLength: 0)
+
+            if selection == .calculator {
+                newDocButton
+                showAllDocsButton
+            }
+        }
+        .padding(.leading, 78)
+        .padding(.trailing, 12)
+        .frame(height: 38)
+        .background(TallyTheme.background)
+    }
+
+    private var panePicker: some View {
+        Menu {
+            ForEach(Array(visiblePanes.enumerated()), id: \.element) { idx, pane in
+                Button {
+                    selection = pane
+                } label: {
+                    // Keep the pane's icon visible AND mark the
+                    // current selection — replacing the icon with
+                    // a checkmark robbed the menu of the at-a-
+                    // glance scan that the icons enable.
+                    HStack(spacing: 8) {
+                        Image(systemName: pane.icon)
+                        Text(pane.rawValue)
+                        Spacer()
+                        if pane == selection {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(TallyTheme.accent)
+                        }
+                    }
+                }
+                // ⌘1..⌘9 quick-switch — only bind on indices the
+                // user can actually press; saves an Apple-flag
+                // collision on ⌘0.
+                .keyboardShortcut(idx < 9 ? KeyEquivalent(Character("\(idx + 1)")) : .return,
+                                  modifiers: idx < 9 ? .command : [.command, .option])
+            }
+        } label: {
+            Group {
                 if selection == .calculator {
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button("New calculation") { _ = documents.newDocument() }
-                                .keyboardShortcut("n", modifiers: .command)
-                        } label: {
-                            Image(systemName: "plus")
-                                .imageScale(.large)
-                                .foregroundStyle(TallyTheme.text)
-                                .frame(width: 22, height: 22)
-                                .contentShape(Rectangle())
-                        } primaryAction: {
-                            _ = documents.newDocument()
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .help("New calculation (⌘N)")
-                        .accessibilityLabel("New calculation")
-                    }
-
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button("Show all calculations") { showDocsPopover = true }
-                                .keyboardShortcut("l", modifiers: .command)
-                        } label: {
-                            Image(systemName: "line.3.horizontal")
-                                .imageScale(.large)
-                                .foregroundStyle(TallyTheme.text)
-                                .frame(width: 22, height: 22)
-                                .contentShape(Rectangle())
-                        } primaryAction: {
-                            showDocsPopover = true
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .help("Show all calculations (⌘L)")
-                        .accessibilityLabel("Show all calculations")
-                        .popover(isPresented: $showDocsPopover, arrowEdge: .bottom) {
-                            DocumentsPopover(store: documents, isPresented: $showDocsPopover)
-                        }
-                    }
-                }
-
-                // "Tally" wordmark anchored at the far-right end of the
-                // toolbar. Orange (`TallyTheme.accent`) at half opacity
-                // so it reads as a quiet brand mark, not a button.
-                // `.primaryAction` placement avoids the capsule
-                // background that `.principal` applies. Declared last
-                // so it sits to the right of the +/hamburger actions.
-                ToolbarItem(placement: .primaryAction) {
-                    Text("Tally")
-                        .fontWeight(.semibold)
-                        .foregroundStyle(TallyTheme.accent)
-                        .opacity(0.5)
-                        .accessibilityHidden(true)
+                    Image(nsImage: TallyGlyph.nsImage(
+                        size: 18,
+                        color: NSColor(TallyTheme.accent)
+                    ))
+                    .renderingMode(.original)
+                } else {
+                    Image(systemName: selection.icon)
+                        .imageScale(.large)
+                        .foregroundStyle(TallyTheme.text)
                 }
             }
+            .frame(width: 22, height: 22)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Switch pane — currently \(selection.rawValue)")
+        .accessibilityLabel("Switch pane")
+        .accessibilityValue(selection.rawValue)
+    }
+
+    private var newDocButton: some View {
+        Menu {
+            Button("New calculation") { _ = documents.newDocument() }
+                .keyboardShortcut("n", modifiers: .command)
+        } label: {
+            Image(systemName: "plus")
+                .imageScale(.large)
+                .foregroundStyle(TallyTheme.text)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        } primaryAction: {
+            _ = documents.newDocument()
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("New calculation (⌘N)")
+        .accessibilityLabel("New calculation")
+    }
+
+    private var showAllDocsButton: some View {
+        Menu {
+            Button("Show all calculations") { showDocsPopover = true }
+                .keyboardShortcut("l", modifiers: .command)
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .imageScale(.large)
+                .foregroundStyle(TallyTheme.text)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        } primaryAction: {
+            showDocsPopover = true
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Show all calculations (⌘L)")
+        .accessibilityLabel("Show all calculations")
+        .popover(isPresented: $showDocsPopover, arrowEdge: .bottom) {
+            DocumentsPopover(store: documents, isPresented: $showDocsPopover)
+        }
     }
 
     @ViewBuilder
