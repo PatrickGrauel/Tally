@@ -121,9 +121,13 @@ struct CalculatorPane: View {
                                range: NSRange(location: 0, length: blank.length))
             return blank
         default:
-            let text = display(r)
+            let rawText = display(r)
             let baseColor = NSColor(color(r))
-            let isWeather = isWeatherText(text)
+            let isWeather = isWeatherText(rawText)
+            // Normalise the aviationweather.gov PROB-on-its-own-line
+            // quirk so PROB30/PROB40 reads on the same line as the
+            // TEMPO/BECMG it modifies. Only runs on weather text.
+            let text = isWeather ? joinProbGroups(rawText) : rawText
             let result = NSMutableAttributedString()
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
@@ -318,6 +322,36 @@ struct CalculatorPane: View {
                               value: NSColor(TallyTheme.statusBad),
                               range: tokenRange)
         }
+    }
+
+    /// Join orphan `PROB30` / `PROB40` lines onto the following
+    /// `TEMPO` or `BECMG` line. aviationweather.gov's "raw" format
+    /// applies whitespace-based line wrapping with no semantic
+    /// awareness — `PROB\d\d` is a *modifier* on the next change
+    /// group, not a change group itself, but the upstream often
+    /// breaks the line between them. Standard ICAO/WMO format keeps
+    /// them juxtaposed:
+    ///
+    ///   PROB30 TEMPO 1513/1517 4000 TSRA SCT020 BKN035CB
+    ///
+    /// not:
+    ///
+    ///   PROB30
+    ///   TEMPO 1513/1517 4000 TSRA SCT020 BKN035CB
+    ///
+    /// The regex matches only this exact upstream quirk (PROB +
+    /// optional whitespace + newline + indent + TEMPO|BECMG) and
+    /// collapses it to a single space. No other reformatting.
+    private static let probGroupRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"(PROB\d{2})\s*\n\s*(TEMPO|BECMG)"#)
+    }()
+    private static func joinProbGroups(_ text: String) -> String {
+        guard let regex = probGroupRegex else { return text }
+        let ns = text as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        return regex.stringByReplacingMatches(
+            in: text, range: range, withTemplate: "$1 $2"
+        )
     }
 
     /// True when the result text looks like a METAR / TAF / SPECI. We
