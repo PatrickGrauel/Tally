@@ -123,6 +123,7 @@ struct CalculatorPane: View {
         default:
             let text = display(r)
             let baseColor = NSColor(color(r))
+            let isWeather = isWeatherText(text)
             let result = NSMutableAttributedString()
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             let monoFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
@@ -141,7 +142,17 @@ struct CalculatorPane: View {
                 } else {
                     lineAttr.addAttribute(.foregroundColor, value: baseColor, range: lineRange)
                 }
+                // Wind gusts: always safe (regex is very specific).
                 applyHighGustHighlight(to: lineAttr, source: line)
+                // Vis + ceiling: only for weather text. The 4-digit
+                // visibility regex is broad enough that running it on
+                // arbitrary calculator output (e.g. "2026" in a date,
+                // "4309" in a share count) would produce false-positive
+                // red highlights.
+                if isWeather {
+                    applyVisibilityHighlight(to: lineAttr, source: line)
+                    applyCeilingHighlight(to: lineAttr, source: line)
+                }
                 result.append(lineAttr)
                 if idx < lines.count - 1 {
                     result.append(NSAttributedString(string: "\n",
@@ -198,6 +209,94 @@ struct CalculatorPane: View {
                               value: NSColor(TallyTheme.accent),
                               range: match.range)
         }
+    }
+
+    /// METAR/TAF visibility highlight — semantic colouring against the
+    /// US flight-category thresholds (most universal):
+    ///   • vis < 5000 m  → red    (IFR territory)
+    ///   • vis < 8000 m  → amber  (MVFR territory)
+    ///   • otherwise no highlight
+    ///
+    /// The regex matches any standalone 4-digit token NOT bracketed by
+    /// `/` (which excludes TAF validity ranges like `1506/1612` and RVR
+    /// values like `R25/1500`). Word boundaries handle altimeter
+    /// (`Q1018`/`A2992`) and timestamp (`150550Z`) cases — letters
+    /// adjacent to the digits break the `\b` boundary.
+    private static let visibilityMetersRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"(?<!/)\b(\d{4})\b(?!/)"#)
+    }()
+    /// US-style statute-mile visibility (e.g. `5SM`, `3SM`). Fractional
+    /// forms like `1 1/2SM` are deliberately skipped — they're already
+    /// low enough to render as red on most marginal METARs via the
+    /// integer form when present.
+    private static let visibilityStatuteRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"\b(\d+)SM\b"#)
+    }()
+    private static func applyVisibilityHighlight(to attr: NSMutableAttributedString, source: String) {
+        let ns = source as NSString
+        let fullRange = NSRange(location: 0, length: ns.length)
+
+        if let regex = visibilityMetersRegex {
+            for match in regex.matches(in: source, range: fullRange) {
+                let valueRange = match.range(at: 1)
+                guard valueRange.location != NSNotFound,
+                      let v = Int(ns.substring(with: valueRange))
+                else { continue }
+                let colour: NSColor
+                if v < 5000      { colour = NSColor(TallyTheme.statusBad) }
+                else if v < 8000 { colour = NSColor(TallyTheme.statusCaution) }
+                else             { continue }
+                attr.addAttribute(.foregroundColor, value: colour, range: match.range)
+            }
+        }
+        if let regex = visibilityStatuteRegex {
+            for match in regex.matches(in: source, range: fullRange) {
+                let valueRange = match.range(at: 1)
+                guard valueRange.location != NSNotFound,
+                      let v = Int(ns.substring(with: valueRange))
+                else { continue }
+                let colour: NSColor
+                if v < 3      { colour = NSColor(TallyTheme.statusBad) }
+                else if v < 5 { colour = NSColor(TallyTheme.statusCaution) }
+                else          { continue }
+                attr.addAttribute(.foregroundColor, value: colour, range: match.range)
+            }
+        }
+    }
+
+    /// METAR/TAF ceiling highlight. A ceiling is the lowest `BKN` /
+    /// `OVC` / `VV` layer; `FEW` and `SCT` are not ceilings. Each
+    /// matching layer is highlighted independently against:
+    ///   • height < 1000 ft AGL → red   (IFR / LIFR)
+    ///   • height < 3000 ft AGL → amber (MVFR)
+    private static let ceilingRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"\b(BKN|OVC|VV)(\d{3})\b"#)
+    }()
+    private static func applyCeilingHighlight(to attr: NSMutableAttributedString, source: String) {
+        guard let regex = ceilingRegex else { return }
+        let ns = source as NSString
+        let fullRange = NSRange(location: 0, length: ns.length)
+        for match in regex.matches(in: source, range: fullRange) {
+            let heightRange = match.range(at: 2)
+            guard heightRange.location != NSNotFound,
+                  let hundreds = Int(ns.substring(with: heightRange))
+            else { continue }
+            let feet = hundreds * 100
+            let colour: NSColor
+            if feet < 1000      { colour = NSColor(TallyTheme.statusBad) }
+            else if feet < 3000 { colour = NSColor(TallyTheme.statusCaution) }
+            else                { continue }
+            attr.addAttribute(.foregroundColor, value: colour, range: match.range)
+        }
+    }
+
+    /// True when the result text looks like a METAR / TAF / SPECI. We
+    /// gate the vis + ceiling highlights on this so the 4-digit
+    /// visibility regex doesn't accidentally repaint values like
+    /// "2026" (year strings) or "4309M" (share counts) in arbitrary
+    /// calculator results.
+    private static func isWeatherText(_ s: String) -> Bool {
+        s.hasPrefix("METAR ") || s.hasPrefix("TAF ") || s.hasPrefix("SPECI ")
     }
 
     private static func display(_ r: LineResult) -> String {
