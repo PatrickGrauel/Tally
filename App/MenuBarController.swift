@@ -11,6 +11,11 @@ final class MenuBarController: NSObject {
     private var statusItem: NSStatusItem?
     /// Cached menu so we can re-attach it for right-click then detach.
     private lazy var contextMenu: NSMenu = makeMenu()
+    /// Observer that drops the window level back to `.normal` when the
+    /// user clicks away. Installed when the window is summoned into a
+    /// fullscreen Space; nilled out after firing once. Stored so we
+    /// don't leak observers across multiple summon → dismiss cycles.
+    private var resignKeyObserver: NSObjectProtocol?
 
     /// Set by WindowOpenerBridge once the WindowGroup scene has appeared.
     /// Calling this asks SwiftUI to (re)open the "main" window — needed
@@ -95,6 +100,44 @@ final class MenuBarController: NSObject {
         window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
     }
 
+    /// Elevate the window to `.floating` so it can overlay a fullscreen
+    /// app's window. The cross-space collection flags above let the
+    /// window *join* a fullscreen Space, but at `.normal` level the
+    /// fullscreen window still sits on top. `.floating` puts us above.
+    ///
+    /// On `didResignKey` (the user clicked back to the fullscreen app
+    /// or another window), restore `.normal` so the window doesn't
+    /// permanently float over everything. Users who want the
+    /// permanent-on-top behavior can still enable Always-on-Top in
+    /// Settings — that path uses `WindowLevelApplier` and keeps the
+    /// level pinned regardless of this resign-key restoration.
+    private func elevateForFullscreenOverlay(_ window: NSWindow) {
+        window.level = .floating
+
+        // Replace any prior observer — multiple summons in quick
+        // succession could otherwise stack observers.
+        if let prev = resignKeyObserver {
+            NotificationCenter.default.removeObserver(prev)
+            resignKeyObserver = nil
+        }
+
+        resignKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self, weak window] _ in
+            // Re-check Always-on-Top each fire — the user may have
+            // toggled it on since the observer was installed, in
+            // which case the WindowLevelApplier policy wins.
+            let alwaysOnTop = UserDefaults.standard.bool(forKey: "tally.alwaysOnTop")
+            if !alwaysOnTop { window?.level = .normal }
+            if let observer = self?.resignKeyObserver {
+                NotificationCenter.default.removeObserver(observer)
+                self?.resignKeyObserver = nil
+            }
+        }
+    }
+
     private func mainWindow() -> NSWindow? {
         // ContentView sets navigationTitle("") so window.title is empty —
         // we identify the WindowGroup("Vektor", id: "main") window by its
@@ -146,6 +189,7 @@ final class MenuBarController: NSObject {
         // which is exactly the "Space slide" the user wanted to avoid.
         if let win = mainWindow() {
             Self.prepareForCrossSpaceSummon(win)
+            elevateForFullscreenOverlay(win)
             if win.isMiniaturized { win.deminiaturize(nil) }
             win.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -155,6 +199,7 @@ final class MenuBarController: NSObject {
             DispatchQueue.main.async { [weak self] in
                 if let w = self?.mainWindow() {
                     Self.prepareForCrossSpaceSummon(w)
+                    self?.elevateForFullscreenOverlay(w)
                     w.makeKeyAndOrderFront(nil)
                     NSApp.activate(ignoringOtherApps: true)
                 }
@@ -168,6 +213,7 @@ final class MenuBarController: NSObject {
             DispatchQueue.main.async { [weak self] in
                 if let w = self?.mainWindow() {
                     Self.prepareForCrossSpaceSummon(w)
+                    self?.elevateForFullscreenOverlay(w)
                     w.makeKeyAndOrderFront(nil)
                     NSApp.activate(ignoringOtherApps: true)
                 }
@@ -180,6 +226,7 @@ final class MenuBarController: NSObject {
     @objc private func menuOpen() {
         if let win = mainWindow() {
             Self.prepareForCrossSpaceSummon(win)
+            elevateForFullscreenOverlay(win)
             if win.isMiniaturized { win.deminiaturize(nil) }
             win.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -188,6 +235,7 @@ final class MenuBarController: NSObject {
             DispatchQueue.main.async { [weak self] in
                 if let w = self?.mainWindow() {
                     Self.prepareForCrossSpaceSummon(w)
+                    self?.elevateForFullscreenOverlay(w)
                     w.makeKeyAndOrderFront(nil)
                     NSApp.activate(ignoringOtherApps: true)
                 }
