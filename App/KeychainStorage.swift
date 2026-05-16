@@ -21,9 +21,18 @@ enum KeychainStorage {
     /// string that just changed.
     static let changeNotificationKeyInfoKey = "key"
 
-    /// Service attribute on every stored item. Stable across app
-    /// versions so existing items survive an update.
-    private static let service = "app.tally.Tally"
+    /// Service attribute on every stored item. macOS surfaces this
+    /// string in its "Vektor wants to use your confidential information
+    /// stored in '<service>'" prompt — using the product name reads
+    /// cleanly there, where the bundle ID (kept at the legacy
+    /// `app.tally.Tally` for data continuity) would not.
+    ///
+    /// Renamed from `app.tally.Tally` in 1.0.0. Items written under the
+    /// old service are now orphaned; users with an existing FMP /
+    /// OpenExchangeRates key re-paste once and the new entries land
+    /// under `Vektor`. The orphan entries are visible in Keychain
+    /// Access.app and can be deleted manually if desired.
+    private static let service = "Vektor"
 
     // MARK: - CRUD
 

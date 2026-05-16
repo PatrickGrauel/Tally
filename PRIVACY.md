@@ -22,7 +22,7 @@ The following data is stored locally inside Vektor's macOS app sandbox container
 
 API keys are optional. If you never paste one, no key is stored and Keychain is never touched. The calculator, units, currencies (via free anonymous rates), METAR/TAF/ATIS, timezones, and aviation tools all work without any key.
 
-You can clear all Vektor data at any time by deleting the app's sandbox container (`~/Library/Containers/app.tally.Tally/`) and removing any Keychain entries with service identifier `app.tally.Tally` via Keychain Access.app.
+You can clear all Vektor data at any time by deleting the app's sandbox container (`~/Library/Containers/app.tally.Tally/`) and removing any Keychain entries with service identifier `Vektor` via Keychain Access.app.
 
 ## Third-party services Vektor talks to
 
