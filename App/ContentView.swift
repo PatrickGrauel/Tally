@@ -285,11 +285,46 @@ struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @StateObject private var documents = DocumentStore()
     @StateObject private var calculatorBridge = CalculatorBridge()
-    @State private var selection: Pane = .calculator
+    @State private var selection: Pane = Self.resolveInitialPane()
     @State private var showPaneMenu = false
     @State private var showDocsPopover = false
     @State private var showManagePanesPopover = false
     @AppStorage("tally.appearance") private var appearance: String = "system"
+
+    // Session restore: remember which pane the user was on if they
+    // come back to Vektor within 10 minutes. Tracks "last away" rather
+    // than "last switched to" — closing the window during a long
+    // Timezone session and reopening 5 min later should land back on
+    // Timezone, not bounce to Calculator because the *switch* happened
+    // 30 min ago.
+    @Environment(\.scenePhase) private var scenePhase
+    private static let sessionPaneKey   = "tally.session.lastPane"
+    private static let sessionStampKey  = "tally.session.lastPaneAt"
+    private static let sessionWindow: TimeInterval = 10 * 60   // 10 minutes
+
+    /// Resolve the pane to land on at view creation. Inside the
+    /// session window the previously-active pane wins; outside it,
+    /// we default to Calculator. Also bounces to Calculator if the
+    /// stored pane is no longer enabled (e.g., the user disabled
+    /// Stocks before relaunch).
+    private static func resolveInitialPane() -> Pane {
+        let stamp = UserDefaults.standard.double(forKey: sessionStampKey)
+        guard stamp > 0,
+              Date().timeIntervalSince1970 - stamp < sessionWindow,
+              let raw = UserDefaults.standard.string(forKey: sessionPaneKey),
+              let pane = Pane(rawValue: raw)
+        else { return .calculator }
+        return pane
+    }
+
+    /// Bump the persisted "last on" timestamp without changing the
+    /// pane. Called when the window loses focus or the scene goes
+    /// inactive, so the 10-minute window is measured from when the
+    /// user actually stopped looking at Vektor.
+    private func touchSessionTimestamp() {
+        UserDefaults.standard.set(selection.rawValue, forKey: Self.sessionPaneKey)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.sessionStampKey)
+    }
 
     // Per-module enabled flags. Default to true so existing users don't
     // lose features after an update; new users can trim the menu down
@@ -355,6 +390,19 @@ struct ContentView: View {
                 if !panes.contains(selection) {
                     selection = .calculator
                 }
+            }
+            // Persist the active pane every time it changes so a
+            // session-window restore can land on whatever the user
+            // last picked, not just whatever was on screen at quit.
+            .onChange(of: selection) { _, _ in touchSessionTimestamp() }
+            // Bump the timestamp when the user navigates away from
+            // Vektor (window close, app deactivation, Mission Control).
+            // The 10-min restore window starts ticking from this
+            // moment — not from the last pane switch — so a long
+            // session on Timezone doesn't expire while the user is
+            // still actively using it.
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { touchSessionTimestamp() }
             }
     }
 
