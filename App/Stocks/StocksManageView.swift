@@ -4,9 +4,12 @@ import AppKit
 /// Self-contained "manage Stocks" surface. Same content lives in Settings →
 /// Stocks (for the user who navigates to Settings first) and in the pane's
 /// footer popover (for the user who's already in Stocks and doesn't want
-/// to leave). Both surfaces share this view; the API-key binding flows into
-/// the Keychain via `@KeychainStored`, the plan/cap bindings flow into
-/// UserDefaults via `@AppStorage`. Both stay in sync across surfaces.
+/// to leave). The API-key field never *reads* the Keychain — it shows a
+/// "(stored)" placeholder when a key is present and an empty field when
+/// not — so opening this view does not trigger a Keychain prompt.
+/// Typing a new value into the field writes it through to the Keychain
+/// and updates the presence boolean. The plan/cap bindings flow into
+/// UserDefaults via `@AppStorage`. Both surfaces stay in sync.
 ///
 /// The view answers four questions in one card:
 ///   1. What key am I using?                                  (SecureField)
@@ -14,7 +17,14 @@ import AppKit
 ///   3. Is it working right now?                              (status dot + label)
 ///   4. How much have I used today, and what does it cost?    (usage + call-cost note)
 struct StocksManageView: View {
-    @KeychainStored("tally.stocks.fmpApiKey") private var apiKey
+    /// Whether the Keychain currently has an FMP key. Read from a
+    /// UserDefaults mirror so this view can render without triggering
+    /// a Keychain prompt at appearance time.
+    @AppStorage("tally.stocks.fmpApiKey.present") private var hasFMPKey: Bool = false
+    /// Buffer for a new key the user is currently typing. The actual
+    /// stored key is never displayed back into this field — SecureFields
+    /// don't help anyone by echoing a secret, even masked.
+    @State private var newKey: String = ""
     @AppStorage(FMPPlan.storageKey)           private var planRaw: String = FMPPlan.free.rawValue
     @AppStorage(FMPPlan.customCapKey)         private var customCap: Int = 240
     @StateObject private var monitor = StocksConnectionMonitor.shared
@@ -43,14 +53,42 @@ struct StocksManageView: View {
 
             // Key
             VStack(alignment: .leading, spacing: 4) {
-                Text("FMP API key").font(.caption).foregroundStyle(.secondary)
-                SecureField("", text: $apiKey, prompt: Text("Paste your FMP key"))
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: apiKey) { _, new in
-                        monitor.reflectKeyChange(newKey: new)
-                        Task { await FMPClient.shared.setAPIKey(new.isEmpty ? nil : new) }
+                HStack(spacing: 6) {
+                    Text("FMP API key").font(.caption).foregroundStyle(.secondary)
+                    if hasFMPKey {
+                        Text("· stored")
+                            .font(.caption2)
+                            .foregroundStyle(TallyTheme.statusGood)
                     }
-                Text("Stored in the macOS Keychain. macOS may ask permission the first time — that's the system protecting the key.")
+                    Spacer()
+                    if hasFMPKey {
+                        Button("Clear") {
+                            KeychainStorage.delete("tally.stocks.fmpApiKey")
+                            newKey = ""
+                            monitor.reflectKeyPresence(present: false)
+                            Task { await FMPClient.shared.setAPIKey(nil) }
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                SecureField(
+                    "",
+                    text: $newKey,
+                    prompt: Text(hasFMPKey ? "Paste a new key to replace the stored one" : "Paste your FMP key")
+                )
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { commitNewKeyIfNeeded() }
+                .onChange(of: newKey) { _, new in
+                    // Trim aggressively — pasted keys often carry stray
+                    // whitespace. Commit immediately so the user doesn't
+                    // have to press return after pasting.
+                    let trimmed = new.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed != new { newKey = trimmed; return }
+                    if !trimmed.isEmpty { commitNewKeyIfNeeded() }
+                }
+                Text("Stored in the macOS Keychain. macOS may ask permission the first time Vektor *uses* the key (e.g. analysing a ticker) — that's the system protecting the secret. Opening this view never touches the Keychain.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -137,6 +175,15 @@ struct StocksManageView: View {
         .onChange(of: monitor.status) { _, _ in
             Task { await refreshBudget() }
         }
+    }
+
+    private func commitNewKeyIfNeeded() {
+        let trimmed = newKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        KeychainStorage.set(trimmed, for: "tally.stocks.fmpApiKey")
+        newKey = ""
+        monitor.reflectKeyPresence(present: true)
+        Task { await FMPClient.shared.refreshAPIKeyFromKeychain() }
     }
 
     private func refreshBudget() async {

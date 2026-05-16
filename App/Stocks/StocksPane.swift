@@ -8,7 +8,12 @@ import AppKit
 struct StocksPane: View {
     @AppStorage("tally.stocks.lastTicker") private var lastTicker: String = ""
     @AppStorage("tally.stocks.recentTickers") private var recentTickersRaw: String = ""
-    @KeychainStored("tally.stocks.fmpApiKey") private var apiKey
+    /// Whether an FMP key is currently stored. Mirrored into UserDefaults
+    /// by `KeychainStorage.set/delete` so we can answer "is the user set
+    /// up?" without ever reading the Keychain — which would trigger a
+    /// system prompt on every ad-hoc build. The actual key value is
+    /// read only at API-call time inside FMPClient.
+    @AppStorage("tally.stocks.fmpApiKey.present") private var hasFMPKey: Bool = false
     // Observe the plan + custom-cap settings so the footer's daily-cap
     // number reflects the user's current plan in real time. Without
     // this, changing the plan in the manage popover refreshes that
@@ -51,7 +56,7 @@ struct StocksPane: View {
 
     var body: some View {
         Form {
-            if apiKey.isEmpty {
+            if !hasFMPKey {
                 // First-run / not-yet-keyed flow — the pane owns its
                 // setup so the user doesn't have to spelunk Settings to
                 // discover what FMP is or why a Mac app wants a key.
@@ -93,9 +98,18 @@ struct StocksPane: View {
             }
             Task { await refreshBudget() }
         }
-        .onChange(of: apiKey) { _, new in
-            monitor.reflectKeyChange(newKey: new)
-            Task { await FMPClient.shared.setAPIKey(new.isEmpty ? nil : new) }
+        .onChange(of: hasFMPKey) { _, present in
+            // Sync the connection-status indicator + FMPClient's cached
+            // key. When the boolean flips from false→true, FMPClient
+            // re-reads the Keychain on its next request (triggering the
+            // one-time prompt at use-the-key time, not now). When it
+            // flips true→false, we clear FMPClient's cache eagerly.
+            monitor.reflectKeyPresence(present: present)
+            if !present {
+                Task { await FMPClient.shared.setAPIKey(nil) }
+            } else {
+                Task { await FMPClient.shared.refreshAPIKeyFromKeychain() }
+            }
         }
         // Plan / custom-cap changes don't fire a network call, but they
         // do change the effective `callsLimit` reported by FMPClient —
@@ -147,7 +161,12 @@ struct StocksPane: View {
                     Button("Connect") {
                         let trimmed = pastedKey.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmed.isEmpty else { return }
-                        apiKey = trimmed
+                        // Direct Keychain write — silent for the app's
+                        // own new items. The presence boolean flips
+                        // automatically via KeychainStorage.set, which
+                        // wakes the `.onChange(of: hasFMPKey)` observer
+                        // above to wire up FMPClient.
+                        KeychainStorage.set(trimmed, for: "tally.stocks.fmpApiKey")
                         pastedKey = ""
                     }
                     .disabled(pastedKey.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -485,7 +504,12 @@ struct StocksPane: View {
         expandedAxes.removeAll()   // new analysis → start collapsed
 
         task = Task { @MainActor in
-            await FMPClient.shared.setAPIKey(apiKey.isEmpty ? nil : apiKey)
+            // FMPClient reads the Keychain lazily on its first API call,
+            // gated by `KeychainStorage.hasKey(...)` — no eager fetch
+            // needed here. We only need to ensure the in-actor cache is
+            // populated for runs after a fresh paste, which the manage
+            // view + setup card already trigger via
+            // `refreshAPIKeyFromKeychain()`.
             do {
                 let bundle = try await FMPClient.shared.analyse(symbol: symbol)
                 let parsed = try FMPParser.parse(symbol: symbol, bundle: bundle)

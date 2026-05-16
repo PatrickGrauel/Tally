@@ -25,8 +25,11 @@ final class StocksConnectionMonitor: ObservableObject {
     @Published var status: Status
 
     private init() {
-        let key = KeychainStorage.get("tally.stocks.fmpApiKey") ?? ""
-        self.status = key.isEmpty ? .noKey : .unused
+        // Read the presence boolean (UserDefaults mirror) rather than
+        // the Keychain itself, so first construction of this singleton
+        // never triggers a Keychain prompt. The actual key value is
+        // read by FMPClient at API-call time.
+        self.status = KeychainStorage.hasKey("tally.stocks.fmpApiKey") ? .unused : .noKey
     }
 
     func update(_ newStatus: Status) {
@@ -34,9 +37,10 @@ final class StocksConnectionMonitor: ObservableObject {
     }
 
     /// Convenience: re-derive a sensible initial status when the key
-    /// changes (user types into the SecureField or pastes a fresh key).
-    func reflectKeyChange(newKey: String) {
-        if newKey.trimmingCharacters(in: .whitespaces).isEmpty {
+    /// is added or removed. Driven by the `tally.stocks.fmpApiKey.present`
+    /// boolean rather than by reading the Keychain.
+    func reflectKeyPresence(present: Bool) {
+        if !present {
             status = .noKey
         } else if case .invalidKey = status {
             // They were red; pasting something new gets them back to amber

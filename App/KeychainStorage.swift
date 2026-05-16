@@ -34,6 +34,29 @@ enum KeychainStorage {
     /// Access.app and can be deleted manually if desired.
     private static let service = "Vektor"
 
+    // MARK: - Presence flag
+    //
+    // macOS prompts the user every time an app whose signature has
+    // changed reads from the Keychain. In development with ad-hoc
+    // signing that's every rebuild — so any code path that even
+    // *checks* "is there a key stored?" triggers a prompt before
+    // the user has typed anything. To answer that question without
+    // touching the Keychain, every successful `set(_:for:)` /
+    // `delete(_:)` mirrors a Boolean into `UserDefaults` at key
+    // `<account>.present`. Views and singletons read that Boolean
+    // for "is the key set?" decisions. The actual Keychain value
+    // is read only at the moment we need to USE it (FMP API call,
+    // QuoteService fetch), and only when `hasKey(_:)` confirms a
+    // value exists.
+
+    static func hasKey(_ key: String) -> Bool {
+        UserDefaults.standard.bool(forKey: "\(key).present")
+    }
+
+    private static func setPresenceFlag(_ key: String, value: Bool) {
+        UserDefaults.standard.set(value, forKey: "\(key).present")
+    }
+
     // MARK: - CRUD
 
     static func get(_ key: String) -> String? {
@@ -71,6 +94,10 @@ enum KeychainStorage {
             add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             SecItemAdd(add as CFDictionary, nil)
         }
+
+        // Mirror presence into UserDefaults so other call sites can
+        // ask "is the key set?" without triggering a Keychain read.
+        setPresenceFlag(key, value: !value.isEmpty)
 
         // Notify observers regardless of empty / non-empty — empty means
         // "deleted" and views may want to react.

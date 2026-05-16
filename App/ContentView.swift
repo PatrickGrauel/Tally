@@ -129,7 +129,14 @@ final class AppModel: ObservableObject {
         // restarting the app.
         Task { [weak self] in
             await QuoteService.shared.setAPIKeyProvider {
-                KeychainStorage.get("tally.stocks.fmpApiKey")
+                // Gate on the presence boolean: when there's no key
+                // stored, the provider returns nil immediately and
+                // the Keychain is never touched. The Keychain prompt
+                // (if signature changed since the key was saved)
+                // fires only when the user actually has a key AND
+                // a `stock TICKER` line is being evaluated.
+                guard KeychainStorage.hasKey("tally.stocks.fmpApiKey") else { return nil }
+                return KeychainStorage.get("tally.stocks.fmpApiKey")
             }
             _ = self
         }
@@ -165,7 +172,12 @@ final class AppModel: ObservableObject {
     func bootstrapLiveData() async {
         // Pick an FX source. OpenExchangeRates if the user has a key,
         // Frankfurter (free ECB rates) otherwise.
-        let oxrKey = KeychainStorage.get("tally.fx.openExchangeRatesKey") ?? ""
+        // Same presence-gate pattern as FMP — Frankfurter (free,
+        // anonymous) is the default FX source, so users who never
+        // pasted an OXR key get no Keychain access on launch.
+        let oxrKey: String = KeychainStorage.hasKey("tally.fx.openExchangeRatesKey")
+            ? (KeychainStorage.get("tally.fx.openExchangeRatesKey") ?? "")
+            : ""
         let source: FXService.Source
         if !oxrKey.isEmpty {
             fxSourceLabel = "OpenExchangeRates"

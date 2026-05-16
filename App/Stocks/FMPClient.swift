@@ -182,6 +182,13 @@ actor FMPClient {
             throw FMPError.rateLimitExhausted
         }
 
+        // Lazy Keychain read: if the cached `apiKey` is still nil from
+        // init time but the presence flag says one exists, fetch it now.
+        // This is the first Keychain access of the session for users
+        // who actually want stocks data — prompt (if any) lands here.
+        if (apiKey?.isEmpty ?? true), KeychainStorage.hasKey("tally.stocks.fmpApiKey") {
+            self.apiKey = KeychainStorage.get("tally.stocks.fmpApiKey")
+        }
         guard let key = apiKey, !key.isEmpty else {
             throw FMPError.missingAPIKey
         }
@@ -385,6 +392,23 @@ actor FMPClient {
         }
         self.budget = Self.loadBudget()
         self.cache = Self.loadCache(at: self.cacheURL)
+        // Defer the Keychain read until an actual API call needs it.
+        // Reading at init() time would trigger a system Keychain
+        // prompt on every ad-hoc rebuild whether the user touches
+        // Stocks or not. The presence-flag mirror in UserDefaults
+        // gates whether we even attempt the read.
+        self.apiKey = nil
+    }
+
+    /// Force a fresh Keychain lookup. Called from UI when the user
+    /// has just pasted a new key. The Keychain prompt (if signature
+    /// changed since the value was stored) fires HERE, in the context
+    /// of the user actively saving a key.
+    func refreshAPIKeyFromKeychain() {
+        guard KeychainStorage.hasKey("tally.stocks.fmpApiKey") else {
+            self.apiKey = nil
+            return
+        }
         self.apiKey = KeychainStorage.get("tally.stocks.fmpApiKey")
     }
 
