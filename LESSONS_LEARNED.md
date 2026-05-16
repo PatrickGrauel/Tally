@@ -1,6 +1,6 @@
 # Lessons learned
 
-A running log of surprises, course-corrections, and "things we'd do differently next time" from building Tally — mostly the Stocks pane and the Calculator's unified-editor refactor. Each entry is a short story, then the takeaway in a line.
+A running log of surprises, course-corrections, and "things we'd do differently next time" from building Vektor — mostly the Stocks pane and the Calculator's unified-editor refactor. Each entry is a short story, then the takeaway in a line.
 
 ## On the Financial Modeling Prep free tier
 
@@ -11,11 +11,11 @@ A running log of surprises, course-corrections, and "things we'd do differently 
 **Takeaway:** A pre-flight probe is only useful if it tests the same access path as the real request. Pick the cheapest endpoint that fails under the same conditions.
 
 **The free tier is a curated allowlist, not "all US equities."** Half of the S&P 500 — including Moody's (Buffett's own holding), Berkshire, P&G, Home Depot, Mastercard — returns 402. International, delisted, and most "interesting" US names are paid-only. Discovering this changed how we wrote the empty-state copy: instead of trying to hide the limit, we name it explicitly.
-**Takeaway:** When the provider's coverage is the real product limit, document it in plain English in the failure state. Don't dress it up as a Tally bug.
+**Takeaway:** When the provider's coverage is the real product limit, document it in plain English in the failure state. Don't dress it up as a Vektor bug.
 
 ## On UX for third-party API integration
 
-**Show the failure mode as content, not as chrome.** The first version surfaced `FMP returned HTTP 402 — Premium Query Parameter...` as a red error badge. Users read that as "Tally is broken." Rewriting it as a calm "Not in your data plan" card — same neutral tone as a search-not-found state — fixed the perceived-quality issue without changing the underlying failure. The message names the cause (FMP's coverage), confirms what *is* working (your key, Tally itself), and offers one quiet upgrade link.
+**Show the failure mode as content, not as chrome.** The first version surfaced `FMP returned HTTP 402 — Premium Query Parameter...` as a red error badge. Users read that as "Vektor is broken." Rewriting it as a calm "Not in your data plan" card — same neutral tone as a search-not-found state — fixed the perceived-quality issue without changing the underlying failure. The message names the cause (FMP's coverage), confirms what *is* working (your key, Vektor itself), and offers one quiet upgrade link.
 **Takeaway:** Errors that the user can't fix shouldn't look like errors. They should look like information.
 
 **Move the credential out of "Advanced."** We stashed the FMP API key in Settings → Advanced (collapsed disclosure group) because that's where unknown-looking keys "belong." But the key is required to use the Stocks pane at all — hiding it behind "Advanced" was telling the user "you probably don't need this" about the only thing that makes the feature work. Moved into a dedicated Settings → Stocks section, added an in-pane setup card for first-run, added a clickable status footer that opens a manage popover. Three surfaces, one source of truth (UserDefaults).
@@ -68,7 +68,7 @@ A running log of surprises, course-corrections, and "things we'd do differently 
 
 ## On SwiftUI macOS chrome
 
-**The window toolbar wraps every item in a capsule background on Sonoma+ and there's no public API to suppress it.** First try at a custom-styled "Tally" wordmark used `ToolbarItem(placement: .principal)` — looked great except for the visible pill around the text. Switched to `.primaryAction` — same pill. `.menuStyle(.borderlessButton)` only suppresses the *menu* chrome; the toolbar's own container still applies a background tint, especially on hover. Eventually dropped the SwiftUI toolbar entirely: hidden title bar via `.windowStyle(.hiddenTitleBar)`, built a custom `HStack` chrome inside the window content with the items as plain views. Cost: ~50 lines of view code, lost native NSToolbar overflow/customisation. Win: chrome looks exactly like the mockup.
+**The window toolbar wraps every item in a capsule background on Sonoma+ and there's no public API to suppress it.** First try at a custom-styled "Vektor" wordmark used `ToolbarItem(placement: .principal)` — looked great except for the visible pill around the text. Switched to `.primaryAction` — same pill. `.menuStyle(.borderlessButton)` only suppresses the *menu* chrome; the toolbar's own container still applies a background tint, especially on hover. Eventually dropped the SwiftUI toolbar entirely: hidden title bar via `.windowStyle(.hiddenTitleBar)`, built a custom `HStack` chrome inside the window content with the items as plain views. Cost: ~50 lines of view code, lost native NSToolbar overflow/customisation. Win: chrome looks exactly like the mockup.
 **Takeaway:** SwiftUI's native window toolbar has system-applied chrome that you cannot fully remove. If the design calls for a clean, bubble-free top bar, it is faster to leave the toolbar than to fight it. ADR-015 covers the architectural decision.
 
 ## On regex-driven highlighting

@@ -113,7 +113,7 @@ struct StocksManageView: View {
                 infoLine("Each full analysis costs **5 calls** (income statement, balance sheet, cash flow, key metrics, profile).")
                 infoLine("A coverage-gap lookup (ticker not in your plan) costs **1 call** after the pre-flight check.")
                 infoLine("Cached tickers are **free for 7 days** — re-running KO tomorrow is zero calls.")
-                infoLine("Tally enforces this cap **locally**. Even if your FMP plan allows more, Tally won't let any single day cost more than this number — a hard guardrail against runaway usage, regardless of plan.")
+                infoLine("Vektor enforces this cap **locally**. Even if your FMP plan allows more, Vektor won't let any single day cost more than this number — a hard guardrail against runaway usage, regardless of plan.")
             }
 
             HStack(spacing: 12) {

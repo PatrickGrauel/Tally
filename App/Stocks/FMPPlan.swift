@@ -1,11 +1,11 @@
 import Foundation
 
 /// Which FMP subscription tier the user is on. Drives the daily-call hard
-/// cap that Tally enforces locally. Free is the default, since most users
+/// cap that Vektor enforces locally. Free is the default, since most users
 /// will be — paid tiers are an explicit opt-in via the manage popover.
 ///
 /// The cap is a *protective* hard cap, not a soft suggestion: even if
-/// FMP would actually serve more, Tally refuses new network calls past
+/// FMP would actually serve more, Vektor refuses new network calls past
 /// it. That's the explicit ask — protection against runaway usage,
 /// regardless of what the upstream tier allows.
 enum FMPPlan: String, CaseIterable, Identifiable {
@@ -27,7 +27,7 @@ enum FMPPlan: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Tally's recommended cap for this plan — always a little under
+    /// Vektor's recommended cap for this plan — always a little under
     /// FMP's documented ceiling so the user has retry headroom. Premium
     /// is documented as "unlimited within reason"; we still pick a
     /// finite number because the user explicitly wants a hard cap.

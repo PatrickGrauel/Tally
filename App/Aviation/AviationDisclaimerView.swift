@@ -12,7 +12,7 @@ struct AviationDisclaimerView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
 
-                Text("**Tally is not certified, approved, or audited for flight planning, navigation, or operation of an aircraft.** Its aviation features are provided for situational awareness and study only.")
+                Text("**Vektor is not certified, approved, or audited for flight planning, navigation, or operation of an aircraft.** Its aviation features are provided for situational awareness and study only.")
                     .fixedSize(horizontal: false, vertical: true)
 
                 bullet("**Weather data is third-party** (aviationweather.gov, datis.clowd.io) and may be delayed, cached, incomplete, or unavailable.")
@@ -23,7 +23,7 @@ struct AviationDisclaimerView: View {
 
                 Divider().padding(.vertical, 8)
 
-                Text("By tapping the button below you confirm you have read and accept the full disclaimer in DISCLAIMER.md, and you understand that Tally is not to be relied upon for any flight-critical decision.")
+                Text("By tapping the button below you confirm you have read and accept the full disclaimer in DISCLAIMER.md, and you understand that Vektor is not to be relied upon for any flight-critical decision.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -39,7 +39,7 @@ struct AviationDisclaimerView: View {
                 .controlSize(.large)
                 .padding(.top, 12)
 
-                Text("If you do not accept these terms, leave this pane and use Tally's non-aviation features only.")
+                Text("If you do not accept these terms, leave this pane and use Vektor's non-aviation features only.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)

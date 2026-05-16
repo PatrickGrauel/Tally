@@ -118,7 +118,7 @@ public final class RunwayDatabase: @unchecked Sendable {
             let leHeading = Double(unquote(fields[12])) ?? .nan
             let heHeading = Double(unquote(fields[18])) ?? .nan
             // A row with no usable heading on either end isn't useful
-            // for any of Tally's runway-aware features — skip it.
+            // for any of Vektor's runway-aware features — skip it.
             if leHeading.isNaN && heHeading.isNaN {
                 continue
             }

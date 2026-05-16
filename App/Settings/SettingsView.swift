@@ -60,14 +60,14 @@ struct SettingsView: View {
                     .onChange(of: menuBarOnly) { _, _ in
                         MenuBarController.shared.applyActivationPolicy()
                     }
-                Text("Menu Bar Only Mode hides the Dock icon; reopen Tally by clicking the menu bar icon. macOS sometimes leaves the Dock icon visible until the next launch — use **Relaunch Tally** below if it sticks.")
+                Text("Menu Bar Only Mode hides the Dock icon; reopen Vektor by clicking the menu bar icon. macOS sometimes leaves the Dock icon visible until the next launch — use **Relaunch Vektor** below if it sticks.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Spacer()
-                    Button("Relaunch Tally") {
+                    Button("Relaunch Vektor") {
                         MenuBarController.shared.relaunch()
                     }
-                    .help("Quit and reopen Tally. The cleanest way to apply Menu Bar Only Mode if the Dock icon doesn't disappear.")
+                    .help("Quit and reopen Vektor. The cleanest way to apply Menu Bar Only Mode if the Dock icon doesn't disappear.")
                 }
             }
 
@@ -97,7 +97,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Stocks")
                 } footer: {
-                    Text("Your key stays on this Mac. Tally only sends it to financialmodelingprep.com when you analyse a ticker.")
+                    Text("Your key stays on this Mac. Vektor only sends it to financialmodelingprep.com when you analyse a ticker.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -112,12 +112,12 @@ struct SettingsView: View {
                         Label("Documentation", systemImage: "book")
                     }
                     Button("Send feedback") {
-                        if let url = URL(string: "mailto:feedback@tally.app?subject=Tally%20feedback") {
+                        if let url = URL(string: "mailto:feedback@tally.app?subject=Vektor%20feedback") {
                             NSWorkspace.shared.open(url)
                         }
                     }
                     Spacer()
-                    Text("Tally \(Bundle.main.shortVersion) (\(Bundle.main.buildVersion))")
+                    Text("Vektor \(Bundle.main.shortVersion) (\(Bundle.main.buildVersion))")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -137,7 +137,7 @@ struct SettingsView: View {
 }
 
 /// Pins the host window to .floating when Always-on-Top is on, matching
-/// the main Tally window so Settings doesn't end up hidden behind it.
+/// the main Vektor window so Settings doesn't end up hidden behind it.
 private struct WindowLevelApplier: NSViewRepresentable {
     let alwaysOnTop: Bool
     func makeNSView(context: Context) -> NSView { NSView() }

@@ -34,7 +34,7 @@ final class MenuBarController: NSObject {
             button.target = self
             button.action = #selector(handleClick(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.toolTip = "Tally — click to toggle window, right-click for menu"
+            button.toolTip = "Vektor — click to toggle window, right-click for menu"
         }
         self.statusItem = item
     }
@@ -67,7 +67,7 @@ final class MenuBarController: NSObject {
 
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(withTitle: "Open Tally", action: #selector(menuOpen), keyEquivalent: "o").target = self
+        menu.addItem(withTitle: "Open Vektor", action: #selector(menuOpen), keyEquivalent: "o").target = self
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Preferences…", action: #selector(menuPreferences), keyEquivalent: ",").target = self
         let menuBarOnlyItem = NSMenuItem(
@@ -79,7 +79,7 @@ final class MenuBarController: NSObject {
         menuBarOnlyItem.state = isMenuBarOnly() ? .on : .off
         menu.addItem(menuBarOnlyItem)
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "Quit Tally", action: #selector(menuQuit), keyEquivalent: "q").target = self
+        menu.addItem(withTitle: "Quit Vektor", action: #selector(menuQuit), keyEquivalent: "q").target = self
         return menu
     }
 
@@ -97,7 +97,7 @@ final class MenuBarController: NSObject {
 
     private func mainWindow() -> NSWindow? {
         // ContentView sets navigationTitle("") so window.title is empty —
-        // we identify the WindowGroup("Tally", id: "main") window by its
+        // we identify the WindowGroup("Vektor", id: "main") window by its
         // SwiftUI-assigned identifier instead, falling back to a class /
         // canBecomeMain filter (excluding Settings, status item, etc.).
         if let win = NSApp.windows.first(where: { window in
@@ -260,7 +260,7 @@ final class MenuBarController: NSObject {
         UserDefaults.standard.bool(forKey: "tally.menuBarOnly")
     }
 
-    /// Relaunch Tally cleanly. The only fully reliable way to drop the
+    /// Relaunch Vektor cleanly. The only fully reliable way to drop the
     /// Dock icon when transitioning to Menu-Bar-Only mode mid-session
     /// (and the only way to be sure the menu/activation state is in a
     /// clean state after any settings change). Sandbox-safe: opens the

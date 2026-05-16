@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Numi-inspired palette. Dark variant pulled from the Tally icon (navy);
+/// Numi-inspired palette. Dark variant pulled from the Vektor icon (navy);
 /// light variant is a warm off-white with deep ink text. Each token is an
 /// `NSColor`-backed dynamic colour that re-resolves when the system or the
 /// user's appearance preference changes.

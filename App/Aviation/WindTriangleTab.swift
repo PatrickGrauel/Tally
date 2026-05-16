@@ -106,7 +106,7 @@ struct WindTriangleTab: View {
 
 // MARK: - Navigation fan diagram
 //
-// Ported from the Claude Design "Tally Wind-Face" deliverable. Origin near the
+// Ported from the Claude Design "Vektor Wind-Face" deliverable. Origin near the
 // bottom-left; three north rays (True / Mag / Compass) fan upward, three
 // trajectory rays (Course / Heading / Track) fan to the right. Concentric
 // arcs link each north to each trajectory. Correction indicators near the

@@ -19,7 +19,7 @@ struct TallyApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Tally", id: "main") {
+        WindowGroup("Vektor", id: "main") {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 760, minHeight: 520)

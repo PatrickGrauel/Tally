@@ -5,7 +5,7 @@ import Foundation
 /// tiebreaker), and report head/cross components — including gust
 /// components when the METAR carries a gust.
 ///
-/// The output is a *suggestion*, not an assertion. Tally has no way to
+/// The output is a *suggestion*, not an assertion. Vektor has no way to
 /// know which runway ATIS / Tower has actually nominated; it just
 /// computes the most-favourable end from the wind reported in the
 /// METAR. Display copy in NumiEngine reflects this with the

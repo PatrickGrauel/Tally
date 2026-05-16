@@ -17,7 +17,7 @@ Alternates:
 ## Description (4000 chars max)
 
 ```
-Tally is a native macOS calculator that works like a notepad. Type math, dates,
+Vektor is a native macOS calculator that works like a notepad. Type math, dates,
 units, currencies, and aviation queries — answers appear on the right as you
 type. There's no equals key, no formula bar, no spreadsheet grid. Just one line
 per calculation.
@@ -37,7 +37,7 @@ CALCULATOR
 AVIATION
 
 - METAR, TAF, ATIS retrieval — type METAR EDDM and the live report appears
-  inline with a freshness indicator. Tally automatically appends the wind-
+  inline with a freshness indicator. Vektor automatically appends the wind-
   favoured runway: expect RWY 36R · Hw 11 (G21) · Xc 2 (G4).
 - altitude EDDM — field elevation, pressure altitude, density altitude
   computed from the cached METAR's QNH and OAT.
@@ -48,8 +48,8 @@ AVIATION
 - E6B — wind triangle, density altitude, runway crosswind/headwind, top-of-
   descent, fuel. Weight & balance with saved aircraft profiles.
 
-IMPORTANT — Tally's aviation features are for SITUATIONAL AWARENESS AND STUDY
-ONLY. Tally is not certified, approved, audited, or operationally validated
+IMPORTANT — Vektor's aviation features are for SITUATIONAL AWARENESS AND STUDY
+ONLY. Vektor is not certified, approved, audited, or operationally validated
 for flight planning, navigation, or operation of an aircraft. Always cross-
 check against official weather products, NOTAMs, your aircraft's POH/AFM, and
 certified flight planning systems before and during every flight. The Pilot in
@@ -76,7 +76,7 @@ PRIVACY
 - No accounts. No analytics. No advertising. No telemetry.
 - Your documents and settings live on your Mac, inside the app's sandbox
   container. Nothing is synced to a cloud.
-- Tally contacts third-party services only when you use the corresponding
+- Vektor contacts third-party services only when you use the corresponding
   feature (e.g. aviationweather.gov when you type METAR). The full list of
   services is in the privacy policy.
 - API keys you paste in (FMP, OpenExchangeRates) are stored on your Mac and
@@ -88,7 +88,7 @@ REQUIREMENTS
 - Internet connection for live data (METAR, FX, etc.) — calculator works
   offline; data fetches fail gracefully and show the last cached value.
 
-Tally is the work of one developer. Feedback welcome from the in-app
+Vektor is the work of one developer. Feedback welcome from the in-app
 Preferences → Send feedback link.
 ```
 
@@ -100,26 +100,26 @@ Preferences → Send feedback link.
 
 ## Support URL
 
-> https://github.com/PatrickGrauel/Tally
+> https://github.com/PatrickGrauel/Vektor
 
 (Or any other URL where you'd answer support questions.)
 
 ## Privacy Policy URL
 
-> https://PatrickGrauel.github.io/Tally/privacy/
+> https://PatrickGrauel.github.io/Vektor/privacy/
 
 (Suggested. Replace with wherever you actually host `PRIVACY.md`.)
 
 ## Marketing URL (optional)
 
-> https://github.com/PatrickGrauel/Tally
+> https://github.com/PatrickGrauel/Vektor
 
 ## Age rating
 
 > 4+
 
-Tally has no objectionable content. The App Store Connect questionnaire walks
-you through the categories — for Tally, every answer is "None" except possibly
+Vektor has no objectionable content. The App Store Connect questionnaire walks
+you through the categories — for Vektor, every answer is "None" except possibly
 "Unrestricted Web Access" if you count the third-party HTTPS endpoints, which
 is debatable since the user never types arbitrary URLs.
 
@@ -130,7 +130,7 @@ For each category the answer is **"Not Collected"** with these clarifications:
 - Contact Info — **Not Collected**
 - Health & Fitness — **Not Collected**
 - Financial Info — **Not Collected** (the user's FMP API key is transmitted
-  only to FMP, not collected by Tally)
+  only to FMP, not collected by Vektor)
 - Location — **Not Collected** (CoreLocation is used for geocoding city names
   to coordinates, never to read the device's location)
 - Sensitive Info — **Not Collected**
@@ -147,14 +147,14 @@ For each category the answer is **"Not Collected"** with these clarifications:
 
 Apple may ask: "What about the queries you send to third parties?"
 Answer: those are transmissions on the user's behalf to services they
-elected to use; Tally itself does not collect, store centrally, or
+elected to use; Vektor itself does not collect, store centrally, or
 re-transmit them. The Privacy Manifest declares this and the privacy
 policy enumerates each third-party service.
 
 ## Review notes (text to leave for the App Review team)
 
 ```
-Hello — Tally is a native macOS notepad calculator with first-class aviation
+Hello — Vektor is a native macOS notepad calculator with first-class aviation
 tooling for pilots.
 
 REVIEW PATH
@@ -174,7 +174,7 @@ REVIEW PATH
 
 NETWORK ENDPOINTS
 
-All HTTPS. Third-party services Tally contacts: aviationweather.gov,
+All HTTPS. Third-party services Vektor contacts: aviationweather.gov,
 datis.clowd.io, api.frankfurter.dev, openexchangerates.org,
 api.coingecko.com, financialmodelingprep.com, gml.noaa.gov.
 

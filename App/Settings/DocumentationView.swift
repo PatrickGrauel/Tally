@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Human-written manual for Tally. Opened from Preferences via a "Documentation"
+/// Human-written manual for Vektor. Opened from Preferences via a "Documentation"
 /// button. Single scrollable view with a sidebar for jumping between sections.
 /// The tone is conversational and concrete: examples first, prose second.
 struct DocumentationView: View {
@@ -53,7 +53,7 @@ struct DocumentationView: View {
                 Button("Done") { dismiss() }
             }
         }
-        .navigationTitle("Tally documentation")
+        .navigationTitle("Vektor documentation")
         .themedSheet()
     }
 
@@ -81,7 +81,7 @@ struct DocumentationView: View {
 
     private var basicsSection: some View {
         Doc(title: "Type math, see the answer") {
-            Doc_.paragraph("Tally is a calculator that works the way you'd write things on a napkin. There's no equals key — you just type and Tally computes as you go. The answer for each line appears on the right.")
+            Doc_.paragraph("Vektor is a calculator that works the way you'd write things on a napkin. There's no equals key — you just type and Vektor computes as you go. The answer for each line appears on the right.")
             Doc_.code("""
             2 + 2
             8 times 9
@@ -117,7 +117,7 @@ struct DocumentationView: View {
 
     private var percentSection: some View {
         Doc(title: "Percentages") {
-            Doc_.paragraph("Tally knows the shapes percentages usually take in spoken math:")
+            Doc_.paragraph("Vektor knows the shapes percentages usually take in spoken math:")
             Doc_.code("""
             20% of 50          →  10
             100 - 5%           →  95
@@ -154,7 +154,7 @@ struct DocumentationView: View {
 
     private var unitsSection: some View {
         Doc(title: "Units") {
-            Doc_.paragraph("Tally understands physical units and mixes them freely. Conversion uses `in` or `to` — both mean the same thing.")
+            Doc_.paragraph("Vektor understands physical units and mixes them freely. Conversion uses `in` or `to` — both mean the same thing.")
             Doc_.code("""
             1 m + 50 cm           →  1.5 m
             3 ft 6 in in cm       →  106.68 cm
@@ -163,7 +163,7 @@ struct DocumentationView: View {
             500 hPa in inHg       →  14.77 inHg
             FL250 in ft           →  25 000 ft
             """)
-            Doc_.paragraph("The categories Tally knows about:")
+            Doc_.paragraph("The categories Vektor knows about:")
             Doc_.table([
                 ["Length",      "m, km, cm, mm, μm, nm, in, ft, yd, mi, NM (nautical mile), parsec, ly, AU, fathom, furlong"],
                 ["Mass",        "g, kg, mg, oz, lb, ton, stone, carat (ct)"],
@@ -191,7 +191,7 @@ struct DocumentationView: View {
             $500 + 200 GBP in EUR
             1 BTC in USD
             """)
-            Doc_.paragraph("Live rates come from OpenExchangeRates. Paste a free API key into Preferences → Foreign exchange and Tally refreshes hourly. Without a key, currency arithmetic still works — assignments stick, math composes — but conversion ratios default to 1:1 until rates load.")
+            Doc_.paragraph("Live rates come from OpenExchangeRates. Paste a free API key into Preferences → Foreign exchange and Vektor refreshes hourly. Without a key, currency arithmetic still works — assignments stick, math composes — but conversion ratios default to 1:1 until rates load.")
         }
     }
 
@@ -282,7 +282,7 @@ struct DocumentationView: View {
                 ["**Weather**",    "Orange for BR/HZ/SN · red for TS / FZRA / +RA / VA / DS"]
             ])
 
-            Doc_.paragraph("Tally caches METARs and TAFs on disk. METARs older than 24 hours are pruned automatically. TAFs are kept only as long as they're still inside their validity period — once a forecast expires *and* it's older than 24 hours, it's removed.")
+            Doc_.paragraph("Vektor caches METARs and TAFs on disk. METARs older than 24 hours are pruned automatically. TAFs are kept only as long as they're still inside their validity period — once a forecast expires *and* it's older than 24 hours, it's removed.")
         }
     }
 
@@ -295,38 +295,38 @@ struct DocumentationView: View {
 
     private var menubarSection: some View {
         Doc(title: "Menu bar") {
-            Doc_.paragraph("Tally puts a small equals-with-heading-bug glyph in the macOS menu bar.")
+            Doc_.paragraph("Vektor puts a small equals-with-heading-bug glyph in the macOS menu bar.")
             Doc_.table([
                 ["Left-click",  "Show or hide the window. The window follows you to the current Space."],
                 ["Right-click", "Open / Preferences… / Menu Bar Only Mode / Quit."],
-                ["Menu Bar Only Mode", "Hides the Dock icon. Tally becomes a menu-bar-only app — reopen via the icon."]
+                ["Menu Bar Only Mode", "Hides the Dock icon. Vektor becomes a menu-bar-only app — reopen via the icon."]
             ])
         }
     }
 
     private var safetySection: some View {
         Doc(title: "Safety & disclaimer") {
-            Doc_.paragraph("**Read this before using Tally for any aviation-related purpose.** This section mirrors `DISCLAIMER.md` in the project repository — the full version of both lives at the source URL listed in the App Store description.")
+            Doc_.paragraph("**Read this before using Vektor for any aviation-related purpose.** This section mirrors `DISCLAIMER.md` in the project repository — the full version of both lives at the source URL listed in the App Store description.")
 
-            Doc_.paragraph("**Tally is not certified, approved, audited, or operationally validated for flight planning, navigation, or operation of an aircraft.** It is an independent, hobbyist macOS application. Its aviation features — METAR / TAF / ATIS retrieval, E6B calculations, density altitude, pressure altitude, weight & balance — are provided for **situational awareness and study only**.")
+            Doc_.paragraph("**Vektor is not certified, approved, audited, or operationally validated for flight planning, navigation, or operation of an aircraft.** It is an independent, hobbyist macOS application. Its aviation features — METAR / TAF / ATIS retrieval, E6B calculations, density altitude, pressure altitude, weight & balance — are provided for **situational awareness and study only**.")
 
-            Doc_.paragraph("**1 · No warranty.** Tally is provided AS IS, without warranty of any kind, express or implied. The MIT License's warranty disclaimer applies in full.")
+            Doc_.paragraph("**1 · No warranty.** Vektor is provided AS IS, without warranty of any kind, express or implied. The MIT License's warranty disclaimer applies in full.")
 
-            Doc_.paragraph("**2 · Weather and aeronautical data are third-party.** METAR, TAF, ATIS, and any other aeronautical data displayed by Tally are retrieved from third-party providers (aviationweather.gov, datis.clowd.io). Tally has no control over their accuracy, completeness, latency, or availability. Reports may be delayed beyond their nominal issuance cadence, cached locally for several minutes after their original observation time, truncated or partially decoded, completely unavailable when the upstream service is offline, or geographically limited.")
+            Doc_.paragraph("**2 · Weather and aeronautical data are third-party.** METAR, TAF, ATIS, and any other aeronautical data displayed by Vektor are retrieved from third-party providers (aviationweather.gov, datis.clowd.io). Vektor has no control over their accuracy, completeness, latency, or availability. Reports may be delayed beyond their nominal issuance cadence, cached locally for several minutes after their original observation time, truncated or partially decoded, completely unavailable when the upstream service is offline, or geographically limited.")
 
             Doc_.paragraph("**Always verify weather and aeronautical information against an official, regulator-recognised source** (FAA Aviation Weather Center, EUROCONTROL, your national meteorological service, your operator's flight following service, or equivalent) before and during every flight.")
 
             Doc_.paragraph("**3 · Calculations are generic estimates.** E6B, density altitude, fuel-burn, weight & balance, runway-wind, and atmospheric calculations are computed from standard models (ISA / ICAO Standard Atmosphere, generic aerodynamic relationships, simplified fuel-flow assumptions). They do not account for your specific aircraft's actual performance, certified envelope, configuration, equipment status, age, mechanical condition, or any operator-specific variation. Always cross-check every calculation against your aircraft's POH / AFM; where any difference exists, the POH/AFM governs.")
 
-            Doc_.paragraph("**4 · Not a substitute for official sources.** Tally is not a substitute for official aviation weather products, NOTAMs and aeronautical information publications, flight planning systems certified for the operation being undertaken (Part 91 vs Part 121/135 in the U.S.; NCO vs CAT in the EU), manufacturer-provided performance data, or aircraft-specific weight & balance worksheets approved by your operator or competent authority.")
+            Doc_.paragraph("**4 · Not a substitute for official sources.** Vektor is not a substitute for official aviation weather products, NOTAMs and aeronautical information publications, flight planning systems certified for the operation being undertaken (Part 91 vs Part 121/135 in the U.S.; NCO vs CAT in the EU), manufacturer-provided performance data, or aircraft-specific weight & balance worksheets approved by your operator or competent authority.")
 
-            Doc_.paragraph("**5 · Pilot in Command responsibility.** The PIC is and remains solely responsible for the safe planning, conduct, and termination of the flight — preflight action, weather assessment, fuel planning, weight & balance, navigation, performance computation, and operational decision-making — per the applicable civil aviation regulations of the operating state (14 CFR § 91.3 / § 91.103 / § 91.13 in the U.S.; Commission Regulation (EU) No 965/2012 and SERA in the EU; or the equivalent). Use of Tally does not relieve the PIC of any regulatory, operational, or moral obligation.")
+            Doc_.paragraph("**5 · Pilot in Command responsibility.** The PIC is and remains solely responsible for the safe planning, conduct, and termination of the flight — preflight action, weather assessment, fuel planning, weight & balance, navigation, performance computation, and operational decision-making — per the applicable civil aviation regulations of the operating state (14 CFR § 91.3 / § 91.103 / § 91.13 in the U.S.; Commission Regulation (EU) No 965/2012 and SERA in the EU; or the equivalent). Use of Vektor does not relieve the PIC of any regulatory, operational, or moral obligation.")
 
-            Doc_.paragraph("**6 · No liability.** In no event shall the authors, contributors, copyright holders, or distributors of Tally be liable for any direct, indirect, incidental, special, exemplary, punitive, or consequential damages — including, without limitation, loss of life, personal injury, bodily harm, property damage, loss of an aircraft, loss of cargo, regulatory action, loss of license, loss of revenue, or loss of business — arising from, related to, or in connection with the use of, or the inability to use, this software.")
+            Doc_.paragraph("**6 · No liability.** In no event shall the authors, contributors, copyright holders, or distributors of Vektor be liable for any direct, indirect, incidental, special, exemplary, punitive, or consequential damages — including, without limitation, loss of life, personal injury, bodily harm, property damage, loss of an aircraft, loss of cargo, regulatory action, loss of license, loss of revenue, or loss of business — arising from, related to, or in connection with the use of, or the inability to use, this software.")
 
             Doc_.paragraph("**7 · Stocks scorecard — not financial advice.** The optional Stocks pane scores a public company against one specific quantitative framework (Mary Buffett & David Clark's \"Durable Competitive Advantage\" rubric). It is not investment advice. A high or low score is not a buy or sell recommendation. The framework is opinionated and produces nonsensical results for financial-sector companies, recent IPOs, REITs, and unusual capital structures. Do your own due diligence and consult a licensed financial advisor before making any investment decision.")
 
-            Doc_.paragraph("**8 · Acceptance.** Installing or using the aviation features of Tally constitutes your acceptance of this disclaimer in addition to the MIT License and the End User License Agreement.")
+            Doc_.paragraph("**8 · Acceptance.** Installing or using the aviation features of Vektor constitutes your acceptance of this disclaimer in addition to the MIT License and the End User License Agreement.")
         }
     }
 

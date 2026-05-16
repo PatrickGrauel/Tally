@@ -1,4 +1,4 @@
-# Tally
+# Vektor
 
 A native macOS calculator built for pilots. A natural-language scratchpad on one side, first-class aviation tooling on the other — METAR/TAF/ATIS decoding with freshness indicators, E6B flight computer, weight & balance. Plus optional Finance and Buffett-style Stocks analysis modules for when you're not in the cockpit.
 
@@ -35,28 +35,28 @@ Powered by [Financial Modeling Prep](https://site.financialmodelingprep.com/deve
 
 ## ⚠️ Safety notice — aviation features
 
-**Tally is NOT certified, approved, audited, or operationally validated for flight planning, navigation, or operation of an aircraft.** It is a hobbyist productivity tool. Its aviation features — METAR / TAF / ATIS retrieval, E6B calculations, weight & balance, density altitude, fuel — are provided for **situational awareness and study only**.
+**Vektor is NOT certified, approved, audited, or operationally validated for flight planning, navigation, or operation of an aircraft.** It is a hobbyist productivity tool. Its aviation features — METAR / TAF / ATIS retrieval, E6B calculations, weight & balance, density altitude, fuel — are provided for **situational awareness and study only**.
 
 - **Weather data is third-party.** METAR / TAF / ATIS come from external APIs (aviationweather.gov, datis.clowd.io, etc.) and may be delayed, incomplete, cached, or unavailable.
 - **Calculations are generic estimates.** E6B, density altitude, fuel, and weight & balance figures are computed from standard atmospheric and aerodynamic models. They do **not** account for your specific aircraft's actual performance, equipment, or condition.
 - **Always cross-check against official sources** — official weather products, NOTAMs, your aircraft's POH/AFM, and certified flight planning systems — before and during every flight.
-- **The Pilot in Command remains solely responsible** for the safe conduct of the flight per applicable regulations (14 CFR § 91 in the U.S., EASA Air OPS / Part-NCO / SERA in the EU, or your operating state's equivalent). Using Tally does not relieve the PIC of any obligation.
+- **The Pilot in Command remains solely responsible** for the safe conduct of the flight per applicable regulations (14 CFR § 91 in the U.S., EASA Air OPS / Part-NCO / SERA in the EU, or your operating state's equivalent). Using Vektor does not relieve the PIC of any obligation.
 
-See [**DISCLAIMER.md**](DISCLAIMER.md) for the full safety and liability disclaimer. If you are not willing to accept those terms, do not install or use Tally for any aviation-related purpose.
+See [**DISCLAIMER.md**](DISCLAIMER.md) for the full safety and liability disclaimer. If you are not willing to accept those terms, do not install or use Vektor for any aviation-related purpose.
 
 ## ⚠️ Not financial advice — Stocks pane
 
-**Tally is NOT a financial advisor, broker, or registered investment professional.** The Stocks pane computes a quantitative score against one specific framework (Mary Buffett & David Clark's "Durable Competitive Advantage" rubric) from financial statements pulled from a third-party API.
+**Vektor is NOT a financial advisor, broker, or registered investment professional.** The Stocks pane computes a quantitative score against one specific framework (Mary Buffett & David Clark's "Durable Competitive Advantage" rubric) from financial statements pulled from a third-party API.
 
 - **It is not investment advice.** A high or low score is not a buy or sell recommendation. The framework is opinionated, applies primarily to mature US large-caps, and produces nonsensical results for financial-sector companies, recent IPOs, REITs, and unusual capital structures.
 - **The data is third-party.** Financial Modeling Prep returns the statements; they may be delayed, incomplete, misclassified, or restated by the issuer.
 - **The free tier covers a curated subset.** Many US large-caps (BRK.B, MCO, PG, HD, MA, etc.), most international listings, and delisted companies require a paid FMP plan.
-- **The 5-year window understates the framework.** The book recommends 10 years; the FMP free tier returns 5. Tally flags this in the rationale text.
+- **The 5-year window understates the framework.** The book recommends 10 years; the FMP free tier returns 5. Vektor flags this in the rationale text.
 - **Do your own due diligence.** Cross-check with primary sources (SEC filings, the company's annual report, earnings calls) and consult a licensed financial advisor before making any investment decision. The Pilot in Command of your portfolio is you.
 
 ## Install as a Mac app
 
-Tally is distributed as source. The steps below produce a regular `Tally.app` in `/Applications`, launchable from Spotlight, Launchpad, or the Dock.
+Vektor is distributed as source. The steps below produce a regular `Vektor.app` in `/Applications`, launchable from Spotlight, Launchpad, or the Dock.
 
 **Requirements**
 - macOS 14.0 (Sonoma) or later
@@ -68,42 +68,42 @@ Tally is distributed as source. The steps below produce a regular `Tally.app` in
 brew install xcodegen node
 
 # Clone and build
-git clone https://github.com/PatrickGrauel/Tally.git
-cd Tally
+git clone https://github.com/PatrickGrauel/Vektor.git
+cd Vektor
 xcodegen generate
 (cd JS && npm install && npm run build)
 
 # Release build, ad-hoc signed
-xcodebuild -project Tally.xcodeproj -scheme Tally -configuration Release \
+xcodebuild -project Vektor.xcodeproj -scheme Vektor -configuration Release \
   -derivedDataPath build CODE_SIGN_IDENTITY="-" build
 
 # Install to /Applications and strip the Gatekeeper quarantine flag
-rm -rf /Applications/Tally.app
-cp -R build/Build/Products/Release/Tally.app /Applications/
-xattr -dr com.apple.quarantine /Applications/Tally.app
+rm -rf /Applications/Vektor.app
+cp -R build/Build/Products/Release/Vektor.app /Applications/
+xattr -dr com.apple.quarantine /Applications/Vektor.app
 
 # Launch
-open /Applications/Tally.app
+open /Applications/Vektor.app
 ```
 
-After this, Tally behaves like any other Mac app — find it in Spotlight (`⌘ Space → "Tally"`), Launchpad, or the Dock.
+After this, Vektor behaves like any other Mac app — find it in Spotlight (`⌘ Space → "Vektor"`), Launchpad, or the Dock.
 
-The `xattr` line is required because the binary is only ad-hoc signed. Without it, Gatekeeper would block first launch with *"Tally cannot be opened because the developer cannot be verified."*
+The `xattr` line is required because the binary is only ad-hoc signed. Without it, Gatekeeper would block first launch with *"Vektor cannot be opened because the developer cannot be verified."*
 
 To update later: `cd` into the repo, `git pull`, then rerun the build, `cp`, and `xattr` lines.
 
 ## Build a DMG to share
 
-`scripts/build-dmg.sh` produces a `Tally-X.Y.Z.dmg` in `dist/` (or wherever you point `--output`). Uses only `hdiutil` so no extra Homebrew packages are needed.
+`scripts/build-dmg.sh` produces a `Vektor-X.Y.Z.dmg` in `dist/` (or wherever you point `--output`). Uses only `hdiutil` so no extra Homebrew packages are needed.
 
 ```sh
 ./scripts/build-dmg.sh
-# → dist/Tally-1.0.0.dmg
+# → dist/Vektor-1.0.0.dmg
 
 ./scripts/build-dmg.sh --output ~/Desktop
 ```
 
-The DMG contains `Tally.app` plus a symlink to `/Applications`, so a recipient drags Tally onto Applications and is done. Because the build is ad-hoc signed, first launch needs a right-click → Open (or `xattr -dr com.apple.quarantine /Applications/Tally.app` for fully unattended install).
+The DMG contains `Vektor.app` plus a symlink to `/Applications`, so a recipient drags Vektor onto Applications and is done. Because the build is ad-hoc signed, first launch needs a right-click → Open (or `xattr -dr com.apple.quarantine /Applications/Vektor.app` for fully unattended install).
 
 For public distribution outside the Mac App Store you'll want to additionally:
 - Sign with a Developer ID Application certificate (`CODE_SIGN_IDENTITY="Developer ID Application: …"`)
@@ -118,10 +118,10 @@ The comments at the top of `scripts/build-dmg.sh` link to Apple's notarization d
 xcodegen generate
 
 # Open in Xcode and run normally
-open Tally.xcodeproj
+open Vektor.xcodeproj
 
 # Or build via xcodebuild
-xcodebuild -scheme Tally -configuration Debug build
+xcodebuild -scheme Vektor -configuration Debug build
 
 # Tests
 swift test --package-path Packages/TallyEngine
@@ -140,9 +140,9 @@ The math.js JS bundle at `Packages/TallyEngine/Sources/TallyEngine/Resources/mat
 
 ## Acknowledgements
 
-The natural-language calculator style is inspired by [Numi](https://numi.app). Tally is a from-scratch implementation built on **math.js** (Apache 2.0) embedded in `JSContext`, with an original preprocessor and aviation toolkit.
+The natural-language calculator style is inspired by [Numi](https://numi.app). Vektor is a from-scratch implementation built on **math.js** (Apache 2.0) embedded in `JSContext`, with an original preprocessor and aviation toolkit.
 
-The Stocks pane's scoring rubric comes from **Mary Buffett & David Clark's** *Warren Buffett and the Interpretation of Financial Statements* (Scribner, 2008). Tally implements one analytical interpretation of that framework — it does not represent the authors' or Warren Buffett's views. Financial statements are fetched from [**Financial Modeling Prep**](https://site.financialmodelingprep.com/developer/docs).
+The Stocks pane's scoring rubric comes from **Mary Buffett & David Clark's** *Warren Buffett and the Interpretation of Financial Statements* (Scribner, 2008). Vektor implements one analytical interpretation of that framework — it does not represent the authors' or Warren Buffett's views. Financial statements are fetched from [**Financial Modeling Prep**](https://site.financialmodelingprep.com/developer/docs).
 
 ## License
 

@@ -1028,7 +1028,7 @@ public final class NumiEngine {
         let icaos = Array(tokens.dropFirst())
         guard !icaos.isEmpty else { return nil }
 
-        // Local timezone for displaying alongside Zulu. Tally doesn't
+        // Local timezone for displaying alongside Zulu. Vektor doesn't
         // resolve the airport's local timezone from coordinates (that
         // would need a tzlite dataset) — instead we use the device's
         // local timezone for the "local" column. Pilots planning at

@@ -1,6 +1,6 @@
 # Architecture Decision Board
 
-A running log of non-trivial architectural choices made in Tally — the *why* behind structural decisions that aren't obvious from reading the code. Each entry follows a light ADR format:
+A running log of non-trivial architectural choices made in Vektor — the *why* behind structural decisions that aren't obvious from reading the code. Each entry follows a light ADR format:
 
 - **Status** — Accepted / Superseded by ADR-NN
 - **Context** — what problem we were trying to solve
@@ -15,7 +15,7 @@ ADRs are listed chronologically by adoption.
 
 **Status:** Accepted
 
-**Context.** Most Tally users won't analyse stocks. The Stocks pane requires a third-party API key, hits external services, and consumes a daily call budget. Users who don't want it shouldn't be forced to deal with its presence in the pane menu.
+**Context.** Most Vektor users won't analyse stocks. The Stocks pane requires a third-party API key, hits external services, and consumes a daily call budget. Users who don't want it shouldn't be forced to deal with its presence in the pane menu.
 
 **Decision.** The Stocks pane is gated behind `tally.panes.stocks` in UserDefaults, default `false`. Enabling it requires a deliberate toggle in Settings → Tools. The Aviation and Finance panes default `true` because they don't require external credentials.
 
@@ -132,12 +132,12 @@ ADRs are listed chronologically by adoption.
 
 **Context.** The original budget cap was hardcoded at 240 calls/day (FMP free tier minus a small reserve). Users on paid plans (Starter 600, Pro 1500, Premium ~unlimited) were silently being rate-limited at the free-tier ceiling even though they'd paid for more headroom. Bug.
 
-**Decision.** A user-selectable `FMPPlan` (Free / Starter / Pro / Premium / Custom) drives the local cap. Each tier has a recommended cap (Free 240, Starter 570, Pro 1425, Premium 4750) slightly below FMP's documented limit so the user has retry headroom. The cap is **enforced locally** as a hard guardrail — even if FMP would actually serve more, Tally won't let any single day cost more than this number. Defense in depth: HTTP 429 from FMP is honored as `.rateLimitExhausted` even if Tally's local cap hasn't fired, so we never silently exceed the provider's real ceiling.
+**Decision.** A user-selectable `FMPPlan` (Free / Starter / Pro / Premium / Custom) drives the local cap. Each tier has a recommended cap (Free 240, Starter 570, Pro 1425, Premium 4750) slightly below FMP's documented limit so the user has retry headroom. The cap is **enforced locally** as a hard guardrail — even if FMP would actually serve more, Vektor won't let any single day cost more than this number. Defense in depth: HTTP 429 from FMP is honored as `.rateLimitExhausted` even if Vektor's local cap hasn't fired, so we never silently exceed the provider's real ceiling.
 
 **Consequences.**
 - Paid users get the headroom they paid for.
-- All users get a hard cap they trust — Tally won't run away with their budget.
-- The cap is *informational* in the manage popover ("Tally enforces this locally. Even if your FMP plan allows more, Tally won't let any single day cost more than this number") so the user understands it's a guardrail, not a quirk.
+- All users get a hard cap they trust — Vektor won't run away with their budget.
+- The cap is *informational* in the manage popover ("Vektor enforces this locally. Even if your FMP plan allows more, Vektor won't let any single day cost more than this number") so the user understands it's a guardrail, not a quirk.
 - We rejected auto-detection via 429 alone (would leave Free users hitting the actual 250 with no friendly UI) and pure plan-picker without 429 (would lock us into FMP's current pricing forever).
 
 ---
@@ -175,7 +175,7 @@ The loop is safe because attribute changes (paragraph styles) don't trigger `tex
 
 **Consequences.**
 - Tall results coexist with normal-height results in the same document, with no overlap.
-- Adds modest per-render work: walking text storage twice (once to apply paragraph styles, once to compute glyph positions). Cheap for Tally-sized docs.
+- Adds modest per-render work: walking text storage twice (once to apply paragraph styles, once to compute glyph positions). Cheap for Vektor-sized docs.
 - The termination condition is implicit in NSTextStorage's event model — a future change that started observing attribute changes would create an infinite loop. Documented in the relayout method's comment.
 
 ---
@@ -202,12 +202,12 @@ The loop is safe because attribute changes (paragraph styles) don't trigger `tex
 
 **Context.** The Stocks pane needs an FMP API key. Other potential modules (FX premium tier via OpenExchangeRates, anything else paid) will follow the same pattern. We need a storage and transmission policy.
 
-**Decision.** API keys live in UserDefaults (per-app sandbox container, `~/Library/Containers/app.tally.Tally/`). They're transmitted only to the specific third-party endpoint that requires them, as a query parameter on the request. Tally does not send them anywhere else — no telemetry, no sync, no cloud backup. The manage popover and README both state this explicitly: *"Your key stays on this Mac. Tally only sends it to financialmodelingprep.com when you analyse a ticker."*
+**Decision.** API keys live in UserDefaults (per-app sandbox container, `~/Library/Containers/app.tally.Tally/`). They're transmitted only to the specific third-party endpoint that requires them, as a query parameter on the request. Vektor does not send them anywhere else — no telemetry, no sync, no cloud backup. The manage popover and README both state this explicitly: *"Your key stays on this Mac. Vektor only sends it to financialmodelingprep.com when you analyse a ticker."*
 
 **Consequences.**
 - No iCloud sync of keys — the user pastes once per Mac.
 - No risk of accidentally committing keys to git (verified via repeated history audits during development).
-- The user retains full control; they can rotate the key at FMP at any time and Tally just stops working until they paste the new one.
+- The user retains full control; they can rotate the key at FMP at any time and Vektor just stops working until they paste the new one.
 - If we ever add a cloud-sync mode (e.g. for cross-Mac document sync), this ADR explicitly bars syncing keys via that channel.
 
 ---
@@ -239,7 +239,7 @@ The loop is safe because attribute changes (paragraph styles) don't trigger `tex
 
 **Consequences.**
 - No color flash on typing. Characters land in the right color on the very first frame.
-- The color pass runs on every keystroke — measurably cheap for Tally-sized docs (we walk the text once per edit, applying `.foregroundColor` per line range).
+- The color pass runs on every keystroke — measurably cheap for Vektor-sized docs (we walk the text once per edit, applying `.foregroundColor` per line range).
 - A pure attribute edit (including our own color application) does NOT trigger `.editedCharacters`, so we don't recurse.
 - The same coloring logic also runs in `updateNSView` for bulk text replacements (document switch) where the storage delegate path doesn't fire.
 
@@ -249,14 +249,14 @@ The loop is safe because attribute changes (paragraph styles) don't trigger `tex
 
 **Status:** Accepted (superseded the `.toolbar { … }` approach)
 
-**Context.** The visual mockup called for a clean, bubble-free toolbar: pane picker on the left, a quiet "Tally" wordmark, +/hamburger on the right. SwiftUI's `WindowGroup` toolbar on macOS Sonoma+ wraps every `ToolbarItem` in a capsule background — visible whether the item is hovered or idle. Multiple placement options (`.principal`, `.primaryAction`, `.navigation`) all exhibit it. `.menuStyle(.borderlessButton)` suppresses the *menu's* chrome but the toolbar container itself still applies a hover/idle wash. There is no public API to disable the per-item background.
+**Context.** The visual mockup called for a clean, bubble-free toolbar: pane picker on the left, a quiet "Vektor" wordmark, +/hamburger on the right. SwiftUI's `WindowGroup` toolbar on macOS Sonoma+ wraps every `ToolbarItem` in a capsule background — visible whether the item is hovered or idle. Multiple placement options (`.principal`, `.primaryAction`, `.navigation`) all exhibit it. `.menuStyle(.borderlessButton)` suppresses the *menu's* chrome but the toolbar container itself still applies a hover/idle wash. There is no public API to disable the per-item background.
 
 **Decision.** Leave the native toolbar. Hide the title bar via `.windowStyle(.hiddenTitleBar)`, drop the `.toolbar { … }` block, and build a custom `HStack` chrome inside the window content. Traffic lights still overlay the top-left corner (macOS preserves their geometry even when the title bar is hidden); the HStack uses 78pt left padding to clear them and `.ignoresSafeArea(.container, edges: .top)` to extend up into the title-bar zone so its items align horizontally with the traffic lights.
 
 **Consequences.**
-- Complete visual control. Pane picker, "Tally" wordmark, and action buttons render as plain views with no system-applied backgrounds.
+- Complete visual control. Pane picker, "Vektor" wordmark, and action buttons render as plain views with no system-applied backgrounds.
 - Lost the free NSToolbar drag affordance. The hidden title bar still provides drag from its preserved geometry (the area where the title text would have been), so users can still drag the window from the top — but the chrome HStack itself isn't a drag region. Acceptable: instinct is to drag from the very top edge.
-- Lost NSToolbar's overflow / customisation behaviours. Tally's chrome is small enough that this doesn't matter; would be a problem if we ever wanted user-reorderable items.
+- Lost NSToolbar's overflow / customisation behaviours. Vektor's chrome is small enough that this doesn't matter; would be a problem if we ever wanted user-reorderable items.
 - Rejected: an `NSViewRepresentable` wrapping a raw `NSToolbar`. More code, would still inherit the capsule treatment when items are SwiftUI views.
 
 ---

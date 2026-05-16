@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Tally's brand mark: two horizontal pill bars (the equals sign) with a small
+/// Vektor's brand mark: two horizontal pill bars (the equals sign) with a small
 /// downward-pointing heading-bug triangle sitting on top of the upper bar.
 ///
 /// Designed as a SwiftUI Shape so it renders crisp at any size, in any colour.
@@ -13,7 +13,7 @@ struct TallyGlyph: Shape {
         let w = rect.width, h = rect.height
 
         // Geometric proportions taken from the 1024×1024 master in
-        // icon/renders/Tally-Concept-2-Equals-HeadingBug-1024.png.
+        // icon/renders/Vektor-Concept-2-Equals-HeadingBug-1024.png.
         let barWidth = w * 0.65
         let barHeight = h * 0.13
         let barX = (w - barWidth) / 2

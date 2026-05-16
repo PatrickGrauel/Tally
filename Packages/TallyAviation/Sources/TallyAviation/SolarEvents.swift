@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Implements the standard sunrise equation as published by NOAA
 /// (https://gml.noaa.gov/grad/solcalc/), simplified to deal with just
-/// the events Tally needs: SR (sunrise, upper limb at horizon), SS
+/// the events Vektor needs: SR (sunrise, upper limb at horizon), SS
 /// (sunset, same), BMNT/EECT (begin/end of civil twilight, sun 6°
 /// below horizon).
 ///

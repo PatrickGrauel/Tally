@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 #
-# Build a distributable Tally.dmg. Uses only built-in macOS tooling
+# Build a distributable Vektor.dmg. Uses only built-in macOS tooling
 # (hdiutil) so no extra Homebrew packages are required.
 #
 # Usage:
-#   ./scripts/build-dmg.sh                    # builds dist/Tally-1.0.0.dmg
+#   ./scripts/build-dmg.sh                    # builds dist/Vektor-1.0.0.dmg
 #   ./scripts/build-dmg.sh --output ~/Desktop # writes to ~/Desktop instead
 #
 # What this DOES:
-#   • xcodebuild Release archive of Tally.app
-#   • Stage Tally.app + a symlink to /Applications in a temp directory
+#   • xcodebuild Release archive of Vektor.app
+#   • Stage Vektor.app + a symlink to /Applications in a temp directory
 #   • Pack into a compressed read-only .dmg with the version in the name
 #
 # What this does NOT do (yet):
@@ -22,8 +22,8 @@
 # For public distribution outside the Mac App Store, you'll also want:
 #   • A Developer ID Application certificate from your Apple Developer
 #     account, and CODE_SIGN_IDENTITY="Developer ID Application: …"
-#   • `xcrun notarytool submit dist/Tally-X.Y.Z.dmg --apple-id … --wait`
-#   • `xcrun stapler staple dist/Tally-X.Y.Z.dmg`
+#   • `xcrun notarytool submit dist/Vektor-X.Y.Z.dmg --apple-id … --wait`
+#   • `xcrun stapler staple dist/Vektor-X.Y.Z.dmg`
 # See: https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution
 
 set -euo pipefail
@@ -54,10 +54,10 @@ if [[ -z "$VERSION" ]]; then
     echo "Could not read MARKETING_VERSION from project.yml" >&2
     exit 1
 fi
-DMG_NAME="Tally-$VERSION.dmg"
+DMG_NAME="Vektor-$VERSION.dmg"
 DMG_PATH="$OUTPUT_DIR/$DMG_NAME"
 
-echo "==> Building Tally $VERSION"
+echo "==> Building Vektor $VERSION"
 
 # ── 1. Build the .app ─────────────────────────────────────────────
 cd "$REPO_DIR"
@@ -66,8 +66,8 @@ cd "$REPO_DIR"
 # newer than the .xcodeproj. Skipped silently otherwise so contributors
 # without xcodegen can still drive the script.
 if command -v xcodegen >/dev/null 2>&1; then
-    if [[ ! -d "Tally.xcodeproj" ]] || [[ "project.yml" -nt "Tally.xcodeproj" ]]; then
-        echo "==> Regenerating Tally.xcodeproj"
+    if [[ ! -d "Vektor.xcodeproj" ]] || [[ "project.yml" -nt "Vektor.xcodeproj" ]]; then
+        echo "==> Regenerating Vektor.xcodeproj"
         xcodegen generate
     fi
 fi
@@ -76,8 +76,8 @@ BUILD_DIR="$REPO_DIR/build"
 rm -rf "$BUILD_DIR"
 echo "==> xcodebuild Release"
 xcodebuild \
-    -project Tally.xcodeproj \
-    -scheme Tally \
+    -project Vektor.xcodeproj \
+    -scheme Vektor \
     -configuration Release \
     -destination 'platform=macOS' \
     -derivedDataPath "$BUILD_DIR" \
@@ -85,15 +85,15 @@ xcodebuild \
     build \
     | grep -E "^(\*\* |error:|warning:)" || true
 
-APP_SRC="$BUILD_DIR/Build/Products/Release/Tally.app"
+APP_SRC="$BUILD_DIR/Build/Products/Release/Vektor.app"
 if [[ ! -d "$APP_SRC" ]]; then
-    echo "Build did not produce Tally.app at $APP_SRC" >&2
+    echo "Build did not produce Vektor.app at $APP_SRC" >&2
     exit 1
 fi
 
 # ── 2. Stage the DMG contents ─────────────────────────────────────
-# A scratch directory with Tally.app and a symlink to /Applications,
-# so a user dragging Tally onto the Applications shortcut installs it.
+# A scratch directory with Vektor.app and a symlink to /Applications,
+# so a user dragging Vektor onto the Applications shortcut installs it.
 STAGE_DIR="$(mktemp -d /tmp/tally-dmg.XXXXXX)"
 trap 'rm -rf "$STAGE_DIR"' EXIT
 
@@ -108,7 +108,7 @@ ln -s /Applications "$STAGE_DIR/Applications"
 rm -f "$DMG_PATH"
 echo "==> Creating $DMG_NAME"
 hdiutil create \
-    -volname "Tally $VERSION" \
+    -volname "Vektor $VERSION" \
     -srcfolder "$STAGE_DIR" \
     -ov \
     -format UDZO \
@@ -122,9 +122,9 @@ echo "✓ Built $DMG_PATH ($SIZE)"
 echo
 echo "Recipients can:"
 echo "  1. Open the .dmg"
-echo "  2. Drag Tally.app onto the Applications shortcut"
+echo "  2. Drag Vektor.app onto the Applications shortcut"
 echo "  3. First launch: right-click → Open, or run:"
-echo "       xattr -dr com.apple.quarantine /Applications/Tally.app"
+echo "       xattr -dr com.apple.quarantine /Applications/Vektor.app"
 echo
 echo "For a Developer-ID-signed + notarized DMG, see the comments at"
 echo "the top of this script."

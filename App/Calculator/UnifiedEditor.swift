@@ -179,7 +179,7 @@ final class UnifiedCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDeleg
     /// Walks the storage paragraph-by-paragraph and stamps each line
     /// with a colour by prefix: `#` → accent, `//` → muted, else
     /// default text. Cheap enough to run on every keystroke for
-    /// Tally-sized documents.
+    /// Vektor-sized documents.
     static func applyLineColors(to storage: NSTextStorage) {
         let fullText = storage.string as NSString
         let total = fullText.length

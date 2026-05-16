@@ -1,7 +1,7 @@
-Tally
+Vektor
 ====
 
-Tally bundles a build of math.js (https://mathjs.org) inside the TallyEngine
+Vektor bundles a build of math.js (https://mathjs.org) inside the TallyEngine
 module, loaded at runtime via JavaScriptCore as the underlying math/units
 evaluator. Numi-style natural-language sugar is layered on top in Swift.
 
@@ -21,5 +21,5 @@ math.js is distributed under the Apache 2.0 License.
   See the License for the specific language governing permissions and
   limitations under the License.
 
-Tally's natural-language calculator UX is inspired by Numi (https://numi.app)
+Vektor's natural-language calculator UX is inspired by Numi (https://numi.app)
 but contains no Numi source code; Numi's parser is not publicly available.

@@ -2,16 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Tally does not track users. No analytics SDKs, no identifiers
+    <!-- Vektor does not track users. No analytics SDKs, no identifiers
          sent off-device, no advertising, no cross-app correlation. -->
     <key>NSPrivacyTracking</key>
     <false/>
     <key>NSPrivacyTrackingDomains</key>
     <array/>
 
-    <!-- Tally does not collect data centrally. Documents, settings,
+    <!-- Vektor does not collect data centrally. Documents, settings,
          and API keys stay on the user's Mac (UserDefaults + the app
-         sandbox container). Third-party services that Tally
+         sandbox container). Third-party services that Vektor
          optionally talks to (aviationweather.gov, frankfurter.dev,
          coingecko, datis.clowd.io, financialmodelingprep.com) are
          documented separately in PRIVACY.md. -->
@@ -19,7 +19,7 @@
     <array/>
 
     <!-- Required-reason API declarations. UserDefaults is the only
-         such API Tally uses. -->
+         such API Vektor uses. -->
     <key>NSPrivacyAccessedAPITypes</key>
     <array>
         <dict>
@@ -29,7 +29,7 @@
             <array>
                 <!-- CA92.1: "Declare this reason to access user
                      defaults to read and write information that is
-                     only accessible to the app itself." Tally reads
+                     only accessible to the app itself." Vektor reads
                      and writes its own UserDefaults container only;
                      never another app's defaults via App Groups or
                      any other shared mechanism. -->

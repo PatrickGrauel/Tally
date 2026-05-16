@@ -2,11 +2,11 @@ import Foundation
 import Security
 
 /// Thin wrapper around `SecItem*` for storing string secrets in the
-/// macOS Keychain. Tally uses this for the two API keys that previously
+/// macOS Keychain. Vektor uses this for the two API keys that previously
 /// lived in `UserDefaults` (FMP for the Stocks pane, OpenExchangeRates
 /// for live FX rates).
 ///
-/// Items are partitioned by Tally's app sandbox automatically — the
+/// Items are partitioned by Vektor's app sandbox automatically — the
 /// service identifier below is informational. No keychain-access-groups
 /// entitlement is required because we never share with another app.
 ///

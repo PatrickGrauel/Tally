@@ -113,7 +113,7 @@ struct StocksPane: View {
     // MARK: - Setup card
 
     /// Setup state shown when no key is set. Explains what FMP is, why
-    /// Tally needs a key, and offers a one-click link to get one — all
+    /// Vektor needs a key, and offers a one-click link to get one — all
     /// inline so the user never has to leave the pane to enable it.
     @State private var pastedKey: String = ""
 
@@ -127,7 +127,7 @@ struct StocksPane: View {
                     Text("Connect a data source")
                         .font(.headline)
                 }
-                Text("Tally pulls financial statements from **Financial Modeling Prep**, a third-party data provider. You'll need a free account — their free plan covers around 50 analyses per day of major US-listed companies.")
+                Text("Vektor pulls financial statements from **Financial Modeling Prep**, a third-party data provider. You'll need a free account — their free plan covers around 50 analyses per day of major US-listed companies.")
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
@@ -157,7 +157,7 @@ struct StocksPane: View {
         } header: {
             Text("Stocks")
         } footer: {
-            Text("Your key stays on this Mac. Tally never sends it anywhere except to FMP. You can change or remove it later in Settings → Stocks.")
+            Text("Your key stays on this Mac. Vektor never sends it anywhere except to FMP. You can change or remove it later in Settings → Stocks.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -255,7 +255,7 @@ struct StocksPane: View {
                 Text("FMP's free tier focuses on a curated set of major US-listed companies. International listings (Lufthansa, Nestlé, ASML), several US large-caps (BRK.B, MCO, PG, HD, MA), and delisted companies require a paid plan.")
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Tally and your key are working — this is a coverage limit, not an error.")
+                Text("Vektor and your key are working — this is a coverage limit, not an error.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {

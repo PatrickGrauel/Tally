@@ -222,7 +222,7 @@ actor FMPClient {
                 throw FMPError.invalidAPIKey
             case 429:
                 // FMP's own rate-limit response. We surface this even if
-                // Tally's local cap hasn't fired yet — defence in depth.
+                // Vektor's local cap hasn't fired yet — defence in depth.
                 // The cap is a politeness budget; the 429 is the truth.
                 throw FMPError.rateLimitExhausted
             case 402:

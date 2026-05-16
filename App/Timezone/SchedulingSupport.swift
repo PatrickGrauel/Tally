@@ -1223,7 +1223,7 @@ struct CalendarConfirmSheet: View {
         HStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(TallyTheme.statusCaution)
-            Text("Calendar access denied — enable Tally in System Settings → Privacy → Calendars.")
+            Text("Calendar access denied — enable Vektor in System Settings → Privacy → Calendars.")
                 .font(.caption)
                 .foregroundStyle(TallyTheme.muted)
         }

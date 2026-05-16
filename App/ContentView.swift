@@ -365,7 +365,7 @@ struct ContentView: View {
     private var customChrome: some View {
         HStack(spacing: 12) {
             panePicker
-            Text("Tally")
+            Text("Vektor")
                 .fontWeight(.semibold)
                 .foregroundStyle(TallyTheme.accent)
                 .opacity(0.5)

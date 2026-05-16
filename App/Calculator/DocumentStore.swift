@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-/// A single Tally document — multi-line text whose first non-empty line acts
+/// A single Vektor document — multi-line text whose first non-empty line acts
 /// as the title. Persisted as a list in UserDefaults.
 struct TallyDocument: Identifiable, Codable, Equatable {
     var id: UUID
@@ -48,7 +48,7 @@ final class DocumentStore: ObservableObject {
             // reads less like documentation and more like a friendly nudge.
             // After first launch the user owns it — edit, delete, rename.
             let first = TallyDocument(content: """
-            # Welcome to Tally
+            # Welcome to Vektor
             // Each line is its own calculation. The answer pops up on the right.
             // Click anywhere to start typing — or scroll through these first.
 
@@ -57,7 +57,7 @@ final class DocumentStore: ObservableObject {
             8 * (3.5 + 1)
             prev / 2          // "prev" = the last result. Saves chaining math.
 
-            # Units — Tally's bread and butter
+            # Units — Vektor's bread and butter
             120 kt in km/h
             60000 ft in km
             29.92 inHg in hPa

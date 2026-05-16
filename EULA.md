@@ -1,8 +1,8 @@
-# Tally End User License Agreement
+# Vektor End User License Agreement
 
 _Last updated: May 15, 2026_
 
-This End User License Agreement ("EULA") is a binding agreement between you and Patrick Grauel ("Licensor"), the developer of Tally (the "Licensed Application"). By installing or using the Licensed Application you agree to be bound by this EULA. **If you do not agree, do not install or use the Licensed Application.**
+This End User License Agreement ("EULA") is a binding agreement between you and Patrick Grauel ("Licensor"), the developer of Vektor (the "Licensed Application"). By installing or using the Licensed Application you agree to be bound by this EULA. **If you do not agree, do not install or use the Licensed Application.**
 
 This EULA replaces the Apple Inc. "Licensed Application End User License Agreement" for purposes of the Licensed Application.
 
@@ -18,13 +18,13 @@ You may not:
 
 - Distribute or make the Licensed Application available over a network where it could be used by multiple devices at the same time.
 - Transfer, redistribute, or sublicense the Licensed Application.
-- Copy (except as expressly permitted by this license and the App Store Terms of Service), reverse-engineer, disassemble, attempt to derive the source code of, modify, or create derivative works of the Licensed Application, any updates, or any part thereof, except as and only to the extent permitted by applicable law or the open-source license under which Tally is also made available (the MIT License — see the project repository).
+- Copy (except as expressly permitted by this license and the App Store Terms of Service), reverse-engineer, disassemble, attempt to derive the source code of, modify, or create derivative works of the Licensed Application, any updates, or any part thereof, except as and only to the extent permitted by applicable law or the open-source license under which Vektor is also made available (the MIT License — see the project repository).
 
 ## 3. Consent to use of data
 
 Licensor does not collect or transmit data about your use of the Licensed Application. The Licensed Application stores documents, settings, cached responses, and any API keys you elect to provide entirely on your device, inside the application's sandbox container.
 
-When you use a feature that requires data from a third party (e.g. live weather, currency rates, financial statements), the Licensed Application transmits only the minimum information necessary to that specific third party, as described in the Tally Privacy Policy. The Licensed Application does not retain or re-transmit those requests centrally.
+When you use a feature that requires data from a third party (e.g. live weather, currency rates, financial statements), the Licensed Application transmits only the minimum information necessary to that specific third party, as described in the Vektor Privacy Policy. The Licensed Application does not retain or re-transmit those requests centrally.
 
 ## 4. Aviation features — situational awareness only
 
@@ -76,7 +76,7 @@ You represent and warrant that (i) you are not located in a country that is subj
 
 ## 12. Third-party terms of agreement
 
-You must comply with applicable third-party terms of agreement when using the Licensed Application — including, without limitation, the terms of service of Financial Modeling Prep (if you provide a key for the Stocks feature), OpenExchangeRates (if you provide a key for currency conversion), and the third-party data providers identified in the Tally Privacy Policy.
+You must comply with applicable third-party terms of agreement when using the Licensed Application — including, without limitation, the terms of service of Financial Modeling Prep (if you provide a key for the Stocks feature), OpenExchangeRates (if you provide a key for currency conversion), and the third-party data providers identified in the Vektor Privacy Policy.
 
 ## 13. Third-party beneficiary
 
