@@ -124,10 +124,13 @@ struct StocksPane: View {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(TallyTheme.accent)
-                    Text("Connect a data source")
+                    Text("Connect a data source — optional")
                         .font(.headline)
                 }
-                Text("Vektor pulls financial statements from **Financial Modeling Prep**, a third-party data provider. You'll need a free account — their free plan covers around 50 analyses per day of major US-listed companies.")
+                Text("Stocks is **optional**. The rest of Vektor — calculator, units, currencies, METAR, timezones — works without any account or key.")
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("If you want stock data, Vektor pulls financial statements from **Financial Modeling Prep**, a third-party provider. You'll need a free FMP account — their free plan covers around 50 analyses per day of major US-listed companies.")
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
@@ -157,9 +160,12 @@ struct StocksPane: View {
         } header: {
             Text("Stocks")
         } footer: {
-            Text("Your key stays on this Mac. Vektor never sends it anywhere except to FMP. You can change or remove it later in Settings → Stocks.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Your key stays on this Mac. Vektor stores it in the macOS **Keychain** — so it's encrypted at rest instead of sitting in a preferences file. The first time you save it, macOS may show a one-time *“Vektor wants to use the keychain”* prompt; click **Always Allow** and you won't see it again. Vektor never sends the key anywhere except to financialmodelingprep.com.")
+                Text("Change or remove it later in Settings → Stocks.")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 

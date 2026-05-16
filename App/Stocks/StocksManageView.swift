@@ -50,6 +50,9 @@ struct StocksManageView: View {
                         monitor.reflectKeyChange(newKey: new)
                         Task { await FMPClient.shared.setAPIKey(new.isEmpty ? nil : new) }
                     }
+                Text("Stored in the macOS Keychain. macOS may ask permission the first time — that's the system protecting the key.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
             // Plan
