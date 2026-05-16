@@ -92,6 +92,25 @@ The `xattr` line is required because the binary is only ad-hoc signed. Without i
 
 To update later: `cd` into the repo, `git pull`, then rerun the build, `cp`, and `xattr` lines.
 
+## Build a DMG to share
+
+`scripts/build-dmg.sh` produces a `Tally-X.Y.Z.dmg` in `dist/` (or wherever you point `--output`). Uses only `hdiutil` so no extra Homebrew packages are needed.
+
+```sh
+./scripts/build-dmg.sh
+# → dist/Tally-1.0.0.dmg
+
+./scripts/build-dmg.sh --output ~/Desktop
+```
+
+The DMG contains `Tally.app` plus a symlink to `/Applications`, so a recipient drags Tally onto Applications and is done. Because the build is ad-hoc signed, first launch needs a right-click → Open (or `xattr -dr com.apple.quarantine /Applications/Tally.app` for fully unattended install).
+
+For public distribution outside the Mac App Store you'll want to additionally:
+- Sign with a Developer ID Application certificate (`CODE_SIGN_IDENTITY="Developer ID Application: …"`)
+- Notarize the DMG via `xcrun notarytool submit … --wait` and `xcrun stapler staple`
+
+The comments at the top of `scripts/build-dmg.sh` link to Apple's notarization docs.
+
 ## Develop
 
 ```sh
