@@ -27,7 +27,10 @@ struct NotesEditor: View {
             }
         }
         .background(TallyTheme.background)
-        .onAppear { loadDraft() }
+        .onAppear {
+            loadDraft()
+            wireSuggestionProviders()
+        }
         .onChange(of: noteID) { _, _ in loadDraft() }
         .onChange(of: draftBody) { _, _ in scheduleSave() }
     }
@@ -90,6 +93,34 @@ struct NotesEditor: View {
     // MARK: - Draft <-> store
 
     private var note: Note? { store.saved.first { $0.id == noteID } }
+
+    /// Install closures the editor uses to populate the autocomplete
+    /// popover for `#tag` and `[[wiki-link]]` tokens. We capture
+    /// `store` weakly so the controller doesn't keep notes alive past
+    /// the pane's lifetime.
+    private func wireSuggestionProviders() {
+        controller.fetchTagSuggestions = { [weak store] _ in
+            guard let store else { return [] }
+            // Flatten every note's `tags` into one set, sorted by
+            // popularity so common tags surface first.
+            var counts: [String: Int] = [:]
+            for note in store.saved where !note.isTrashed {
+                for tag in note.tags {
+                    counts[tag, default: 0] += 1
+                }
+            }
+            return counts
+                .sorted { $0.value > $1.value }
+                .map { $0.key }
+        }
+        controller.fetchTitleSuggestions = { [weak store] _ in
+            guard let store else { return [] }
+            return store.saved
+                .filter { !$0.isTrashed }
+                .sorted { $0.modifiedAt > $1.modifiedAt }
+                .map { $0.title }
+        }
+    }
 
     private func loadDraft() {
         flushPendingSave()
@@ -170,6 +201,11 @@ struct NotesEditor: View {
 @MainActor
 final class NotesEditorController: ObservableObject {
     weak var textView: NSTextView?
+    /// Callbacks that return live suggestion lists for the editor's
+    /// autocomplete. Set by `NotesEditor` (which has access to the
+    /// store) so the editor doesn't need to know about persistence.
+    var fetchTagSuggestions: ((String) -> [String])?
+    var fetchTitleSuggestions: ((String) -> [String])?
 
     /// Wrap the current selection with `prefix` and `suffix`. If the
     /// selection already starts with `prefix` and ends with `suffix`,

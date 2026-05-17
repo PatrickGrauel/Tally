@@ -83,6 +83,19 @@ enum NoteTokenizer {
         scanInlineRanges(in: ns, opener: "`", closer: "`") { range in
             ranges.append((range, .code))
         }
+        // Strikethrough (~~text~~).
+        scanInlineRanges(in: ns, opener: "~~", closer: "~~") { range in
+            ranges.append((range, .strikethrough))
+        }
+        // Highlight (==text==).
+        scanInlineRanges(in: ns, opener: "==", closer: "==") { range in
+            ranges.append((range, .highlight))
+        }
+        // Footnote references: `[^1]`, `[^foo]`. Definitions
+        // (`[^1]: ...`) are handled separately at render time.
+        scanFootnoteRefRanges(in: ns) { range in
+            ranges.append((range, .footnoteRef))
+        }
         // ATX headings: a `#` (or up to 6) followed by space at line start.
         scanHeadingRanges(in: ns) { range in
             ranges.append((range, .heading))
@@ -92,6 +105,7 @@ enum NoteTokenizer {
 
     enum TokenKind {
         case tag, wikiLink, bold, emphasis, code, heading
+        case strikethrough, highlight, footnoteRef
     }
 
     // MARK: - Internals
@@ -249,6 +263,28 @@ enum NoteTokenizer {
                 body(NSRange(location: lineRange.location, length: end - lineRange.location))
             }
             lineStart = lineRange.location + lineRange.length
+        }
+    }
+
+    /// Footnote references — `[^id]` where `id` is one or more
+    /// word characters. Footnote *definitions* (lines beginning with
+    /// `[^id]:`) are styled separately at render time so they look
+    /// like footnote bodies rather than inline refs.
+    private static func scanFootnoteRefRanges(in ns: NSString,
+                                              body: (NSRange) -> Void) {
+        let pattern = #"\[\^[A-Za-z0-9_-]+\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+        regex.enumerateMatches(in: ns as String,
+                               range: NSRange(location: 0, length: ns.length)) { match, _, _ in
+            guard let m = match else { return }
+            // Skip if this is followed immediately by `:` — that's a
+            // definition, not a reference.
+            let nextLoc = m.range.location + m.range.length
+            if nextLoc < ns.length,
+               ns.character(at: nextLoc) == UInt16((":" as Character).asciiValue!) {
+                return
+            }
+            body(m.range)
         }
     }
 }

@@ -194,6 +194,25 @@ struct MarkdownTextEditor: NSViewRepresentable {
                     .font: NSFont.boldSystemFont(ofSize: 14),
                     .foregroundColor: NSColor(TallyTheme.text),
                 ]
+            case .strikethrough:
+                return [
+                    .strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                    .foregroundColor: NSColor(TallyTheme.muted),
+                ]
+            case .highlight:
+                return [
+                    .backgroundColor: NSColor(TallyTheme.accent).withAlphaComponent(0.25),
+                ]
+            case .footnoteRef:
+                // Render as small accent superscript: smaller font +
+                // baseline offset + accent colour. The user still sees
+                // the literal `[^1]` text on the caret line; the offset
+                // handles the "looks like a footnote" visual.
+                return [
+                    .font: NSFont.systemFont(ofSize: 10, weight: .medium),
+                    .foregroundColor: NSColor(TallyTheme.accent),
+                    .baselineOffset: 4 as NSNumber,
+                ]
             }
         }
 
@@ -228,7 +247,9 @@ struct MarkdownTextEditor: NSViewRepresentable {
                 styleMarker(storage,
                             NSRange(location: range.location + range.length - 1, length: 1),
                             markerColor)
-            case .wikiLink:
+            case .wikiLink, .strikethrough, .highlight:
+                // 2-char paired delimiters on both ends: `[[ ]]`,
+                // `~~ ~~`, `== ==`. All look identical syntactically.
                 guard range.length > 4 else { return }
                 styleMarker(storage, NSRange(location: range.location, length: 2), markerColor)
                 styleMarker(storage,
@@ -436,6 +457,138 @@ struct MarkdownTextEditor: NSViewRepresentable {
             storage.addAttribute(.foregroundColor, value: NSColor.clear, range: range)
         }
 
+        // MARK: - Autocomplete (hashtags + wiki-links)
+
+        /// Returns true if the caret is inside a token that has live
+        /// autocomplete. Used by NotesEditorTextView to decide whether
+        /// to call `complete(nil)` after a keystroke.
+        func shouldOfferCompletions(after _: String, in textView: NSTextView) -> Bool {
+            return currentCompletionContext(in: textView) != nil
+        }
+
+        private enum CompletionContext {
+            case hashtag(query: String, range: NSRange)
+            case wikiLink(query: String, range: NSRange)
+        }
+
+        private func currentCompletionContext(in textView: NSTextView) -> CompletionContext? {
+            let ns = textView.string as NSString
+            let caret = textView.selectedRange().location
+            guard caret > 0 else { return nil }
+            if let wikiCtx = scanWikiLinkContext(ns: ns, caret: caret) {
+                return wikiCtx
+            }
+            if let tagCtx = scanHashtagContext(ns: ns, caret: caret) {
+                return tagCtx
+            }
+            return nil
+        }
+
+        private func scanHashtagContext(ns: NSString, caret: Int) -> CompletionContext? {
+            var i = caret - 1
+            while i >= 0 {
+                let ch = ns.character(at: i)
+                if ch == UInt16(("#" as Character).asciiValue!) {
+                    if i > 0 {
+                        let prev = ns.character(at: i - 1)
+                        let ok = prev == UInt16(("\n" as Character).asciiValue!)
+                            || prev == UInt16((" " as Character).asciiValue!)
+                            || prev == UInt16(("\t" as Character).asciiValue!)
+                        guard ok else { return nil }
+                    }
+                    let queryRange = NSRange(location: i + 1, length: caret - i - 1)
+                    let query = ns.substring(with: queryRange)
+                    return .hashtag(query: query, range: queryRange)
+                }
+                if !isHashtagChar(ch) { return nil }
+                i -= 1
+            }
+            return nil
+        }
+
+        private func isHashtagChar(_ ch: unichar) -> Bool {
+            (ch >= 0x30 && ch <= 0x39) ||
+            (ch >= 0x41 && ch <= 0x5A) ||
+            (ch >= 0x61 && ch <= 0x7A) ||
+            ch == UInt16(("_" as Character).asciiValue!) ||
+            ch == UInt16(("-" as Character).asciiValue!) ||
+            ch == UInt16(("/" as Character).asciiValue!)
+        }
+
+        private func scanWikiLinkContext(ns: NSString, caret: Int) -> CompletionContext? {
+            let lookbackStart = max(0, caret - 200)
+            var i = caret - 1
+            while i >= lookbackStart {
+                let ch = ns.character(at: i)
+                if ch == UInt16(("]" as Character).asciiValue!)
+                    || ch == UInt16(("\n" as Character).asciiValue!) {
+                    return nil
+                }
+                if ch == UInt16(("[" as Character).asciiValue!) {
+                    if i - 1 >= 0,
+                       ns.character(at: i - 1) == UInt16(("[" as Character).asciiValue!) {
+                        let queryStart = i + 1
+                        let queryRange = NSRange(location: queryStart,
+                                                 length: caret - queryStart)
+                        let query = ns.substring(with: queryRange)
+                        return .wikiLink(query: query, range: queryRange)
+                    }
+                    return nil
+                }
+                i -= 1
+            }
+            return nil
+        }
+
+        // NSTextView completion delegate hook. Apple's bridged
+        // signature uses optional `UnsafeMutablePointer<Int>?` and
+        // optional `[String]?` — nil/empty either dismisses the popover.
+        func textView(_ textView: NSTextView,
+                      completions words: [String],
+                      forPartialWordRange charRange: NSRange,
+                      indexOfSelectedItem index: UnsafeMutablePointer<Int>?) -> [String] {
+            guard let ctx = currentCompletionContext(in: textView) else { return [] }
+            switch ctx {
+            case .hashtag(let query, _):
+                guard let provider = parent.controller.fetchTagSuggestions else { return [] }
+                let q = query.lowercased()
+                return Array(provider(query)
+                    .filter { q.isEmpty || $0.lowercased().hasPrefix(q) }
+                    .prefix(10))
+            case .wikiLink(let query, _):
+                guard let provider = parent.controller.fetchTitleSuggestions else { return [] }
+                let q = query.lowercased()
+                return Array(provider(query)
+                    .filter { q.isEmpty || $0.lowercased().contains(q) }
+                    .prefix(10))
+            }
+        }
+
+        // Custom insert-completion: for wiki-links, also append the
+        // closing `]]` so the user doesn't have to type it.
+        func textView(_ textView: NSTextView,
+                      insertCompletion word: String,
+                      forPartialWordRange charRange: NSRange,
+                      movement: Int,
+                      isFinal flag: Bool) {
+            guard flag else { return }
+            guard let ctx = currentCompletionContext(in: textView) else {
+                textView.replaceCharacters(in: charRange, with: word)
+                return
+            }
+            switch ctx {
+            case .hashtag(_, let range):
+                textView.replaceCharacters(in: range, with: word)
+                let newCaret = range.location + (word as NSString).length
+                textView.selectedRange = NSRange(location: newCaret, length: 0)
+            case .wikiLink(_, let range):
+                let replacement = "\(word)]]"
+                textView.replaceCharacters(in: range, with: replacement)
+                let newCaret = range.location + (replacement as NSString).length
+                textView.selectedRange = NSRange(location: newCaret, length: 0)
+            }
+        }
+
         // MARK: - Paste
 
         func handlePaste(in textView: NSTextView) -> Bool {
@@ -470,6 +623,68 @@ struct MarkdownTextEditor: NSViewRepresentable {
             } catch {
                 return false
             }
+        }
+
+        // MARK: - Slash commands
+
+        /// After a space is typed, look backward from the caret for a
+        /// `/keyword ` pattern at line start or after whitespace and
+        /// expand it into the matching markdown shape. This is the
+        /// lightweight version of Bear's `/` command palette — no
+        /// popover, just snippet-style inline replacement on Space.
+        func tryExpandSlashCommand(in textView: NSTextView) {
+            let ns = textView.string as NSString
+            let caret = textView.selectedRange().location
+            // We were called *after* inserting a space, so the chars at
+            // caret-1 is the trailing space. Scan back from there for `/`.
+            guard caret >= 2 else { return }
+            // Find the most-recent `/` before the caret on the same line.
+            let lineStart = ns.lineRange(for: NSRange(location: caret - 1, length: 0)).location
+            var i = caret - 2   // last non-space character before caret
+            var slashLoc = -1
+            while i >= lineStart {
+                let ch = ns.character(at: i)
+                if ch == UInt16(("/" as Character).asciiValue!) {
+                    slashLoc = i
+                    break
+                }
+                // Stop if we hit a non-word char that's not the slash.
+                if !isSlashCommandChar(ch) { return }
+                i -= 1
+            }
+            guard slashLoc >= 0 else { return }
+            // The `/` must be at line start or after a whitespace char,
+            // so we don't swallow `http://` etc.
+            if slashLoc > lineStart {
+                let prev = ns.character(at: slashLoc - 1)
+                let prevIsBoundary = prev == UInt16((" " as Character).asciiValue!)
+                    || prev == UInt16(("\t" as Character).asciiValue!)
+                guard prevIsBoundary else { return }
+            }
+            let keywordRange = NSRange(location: slashLoc + 1,
+                                       length: caret - 1 - (slashLoc + 1))
+            guard keywordRange.length > 0 else { return }
+            let keyword = ns.substring(with: keywordRange).lowercased()
+            guard let expansion = SlashCommand.expansion(for: keyword) else { return }
+            // Replace `/keyword ` (including the trailing space) with
+            // the expansion, then place the caret at the desired offset.
+            let fullRange = NSRange(location: slashLoc, length: caret - slashLoc)
+            if textView.shouldChangeText(in: fullRange,
+                                         replacementString: expansion.text) {
+                textView.replaceCharacters(in: fullRange, with: expansion.text)
+                textView.didChangeText()
+                let endLoc = slashLoc + (expansion.text as NSString).length
+                let caretLoc = endLoc - expansion.caretOffsetFromEnd
+                textView.selectedRange = NSRange(location: caretLoc, length: 0)
+            }
+        }
+
+        private func isSlashCommandChar(_ ch: unichar) -> Bool {
+            (ch >= 0x30 && ch <= 0x39) ||   // 0-9
+            (ch >= 0x41 && ch <= 0x5A) ||   // A-Z
+            (ch >= 0x61 && ch <= 0x7A) ||   // a-z
+            ch == UInt16(("_" as Character).asciiValue!) ||
+            ch == UInt16(("-" as Character).asciiValue!)
         }
 
         // MARK: - List auto-continue (called from NotesEditorTextView)
@@ -584,6 +799,49 @@ struct MarkdownTextEditor: NSViewRepresentable {
     }
 }
 
+/// Inline slash-command snippets. Typing `/<keyword> ` at a line start
+/// (or after whitespace) is replaced with the corresponding markdown
+/// shape. Bear's `/` command palette in spirit; simpler in mechanics
+/// (no popover, no fuzzy match) — fast to type once memorised.
+enum SlashCommand {
+    struct Expansion {
+        let text: String
+        /// How many characters back from end the caret should land. 0
+        /// = caret at end of expansion.
+        let caretOffsetFromEnd: Int
+    }
+
+    static func expansion(for keyword: String) -> Expansion? {
+        switch keyword {
+        case "h1":         return Expansion(text: "# ", caretOffsetFromEnd: 0)
+        case "h2":         return Expansion(text: "## ", caretOffsetFromEnd: 0)
+        case "h3":         return Expansion(text: "### ", caretOffsetFromEnd: 0)
+        case "list", "ul": return Expansion(text: "- ", caretOffsetFromEnd: 0)
+        case "num", "ol":  return Expansion(text: "1. ", caretOffsetFromEnd: 0)
+        case "todo":       return Expansion(text: "- [ ] ", caretOffsetFromEnd: 0)
+        case "quote":      return Expansion(text: "> ", caretOffsetFromEnd: 0)
+        case "code":
+            // Caret lands inside the fence so user can type the code
+            // immediately.
+            return Expansion(text: "```\n\n```", caretOffsetFromEnd: 4)
+        case "divider", "hr":
+            return Expansion(text: "---\n", caretOffsetFromEnd: 0)
+        case "table":
+            let template = """
+            | Column 1 | Column 2 |
+            | -------- | -------- |
+            |          |          |
+
+            """
+            // Caret lands inside the first header cell.
+            let toEnd = template.count - 2   // after "| "
+            return Expansion(text: template, caretOffsetFromEnd: template.count - toEnd)
+        default:
+            return nil
+        }
+    }
+}
+
 /// NSTextAttachment subclass that carries the checkbox state. Used by
 /// the NSTextView's mouseDown handler to find checkbox clicks (the
 /// alternative — pattern-matching the underlying text after a click —
@@ -610,6 +868,24 @@ final class NotesEditorTextView: NSTextView {
             return
         }
         super.paste(sender)
+    }
+
+    /// Trigger slash-command expansion + autocomplete after specific
+    /// characters land. Has to be after `super.insertText` so the
+    /// inserted character is already in the buffer when we scan.
+    override func insertText(_ string: Any, replacementRange: NSRange) {
+        super.insertText(string, replacementRange: replacementRange)
+        guard let s = string as? String else { return }
+        if s == " " {
+            coordinator?.tryExpandSlashCommand(in: self)
+        }
+        if s == "#" || s == "[" || (s.count == 1 && coordinator?.shouldOfferCompletions(after: s, in: self) == true) {
+            // Auto-trigger the system completion popover when we're
+            // inside a hashtag or wiki-link token. Cheap to call —
+            // NSTextView dismisses immediately if the delegate returns
+            // no completions.
+            complete(nil)
+        }
     }
 
     /// Return key — let the coordinator decide whether we're in a list
