@@ -65,6 +65,14 @@ public enum NumiEngineError: Error, CustomStringConvertible {
     }
 }
 
+/// `JSContext` is single-threaded and cannot tolerate concurrent access from
+/// arbitrary threads (JavaScriptCore will corrupt internal state or crash).
+/// We pin the entire engine to the main actor so every path that touches
+/// `context` — `init`, `evaluate`, `applyFX`, `applyCrypto`, `isKnownUnit` —
+/// is single-threaded by construction, with compile-time enforcement instead
+/// of caller discipline. Pure helpers that don't touch `context` are marked
+/// `nonisolated` so their public API stays callable from any actor.
+@MainActor
 public final class NumiEngine {
     private let context: JSContext
     private let preprocessor = NumiPreprocessor()
@@ -108,7 +116,7 @@ public final class NumiEngine {
     /// to type anything. Without the post, the calculator would stay
     /// on whatever placeholder rates were in place when it first
     /// evaluated on `.onAppear`.
-    public static let ratesUpdatedNotification = Notification.Name("tally.engine.ratesUpdated")
+    nonisolated public static let ratesUpdatedNotification = Notification.Name("tally.engine.ratesUpdated")
 
     private static let logger = Logger(subsystem: "app.tally.Tally", category: "engine")
 
@@ -128,13 +136,10 @@ public final class NumiEngine {
         NotificationCenter.default.post(name: Self.ratesUpdatedNotification, object: nil)
     }
 
-    /// Evaluate a multi-line Numi-style document.
-    ///
-    /// Must run on the main actor: the METAR/TAF cache bridge is
-    /// `@MainActor`-isolated and we use `MainActor.assumeIsolated` to read
-    /// from it synchronously. Without this annotation a background-thread
-    /// caller would trip that assertion and crash.
-    @MainActor
+    /// Evaluate a multi-line Numi-style document. Runs on the main actor
+    /// via the class-level `@MainActor` annotation — both because `JSContext`
+    /// is single-threaded and because the METAR/TAF cache bridge below
+    /// uses `MainActor.assumeIsolated` for synchronous reads.
     public func evaluate(_ source: String) -> [LineResult] {
         let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var results: [LineResult] = []
@@ -1185,7 +1190,7 @@ public final class NumiEngine {
     /// human can act on. The mathjs strings ("Undefined symbol foo",
     /// "Parenthesis ) expected (char 9)") are parser-internal; users
     /// shouldn't see them unmodified in the gutter.
-    public static func humaniseError(_ message: String) -> String {
+    nonisolated public static func humaniseError(_ message: String) -> String {
         let m = message.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Undefined symbol / unit  → "Unknown unit 'foo'"
@@ -1262,7 +1267,7 @@ public final class NumiEngine {
 
     /// Parse the validity period of a TAF (`DDHH/DDHH`) and return its
     /// duration in hours. Returns nil if no validity group is present.
-    static func tafValidityHours(in raw: String) -> Int? {
+    nonisolated static func tafValidityHours(in raw: String) -> Int? {
         let pattern = #"\b(\d{2})(\d{2})/(\d{2})(\d{2})\b"#
         guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
         let ns = raw as NSString
@@ -1308,7 +1313,7 @@ public final class NumiEngine {
     /// `after` argument. The returned cadence is *expected*, not
     /// guaranteed — upstream sometimes runs late, so consumers should
     /// also keep a periodic backstop fetch.
-    public static func nextExpectedIssuance(
+    nonisolated public static func nextExpectedIssuance(
         for kind: MetarService.ReportKind,
         rawCached: String?,
         after: Date = Date()
@@ -1378,7 +1383,7 @@ public final class NumiEngine {
     /// Extract the first `DDHHmmZ` Zulu timestamp from a METAR / TAF and
     /// resolve it to a `Date` in UTC. If the day-of-month is in the future
     /// relative to today, assume the report rolled over from last month.
-    static func observationTime(in raw: String) -> Date? {
+    nonisolated static func observationTime(in raw: String) -> Date? {
         let pattern = #"\b(\d{2})(\d{2})(\d{2})Z\b"#
         guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
         let ns = raw as NSString
