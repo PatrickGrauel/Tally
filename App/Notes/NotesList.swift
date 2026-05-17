@@ -1,5 +1,27 @@
 import SwiftUI
 
+/// How the middle column's notes are ordered. Pinned notes always
+/// float to the top within each sort mode — the mode just decides the
+/// secondary ordering inside the pinned and un-pinned groups.
+enum NotesSortMode: String, CaseIterable, Identifiable {
+    case modified, created, title
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .modified: return "Date modified"
+        case .created:  return "Date created"
+        case .title:    return "Title"
+        }
+    }
+    var systemImage: String {
+        switch self {
+        case .modified: return "clock"
+        case .created:  return "calendar"
+        case .title:    return "textformat"
+        }
+    }
+}
+
 /// Middle column: list of notes matching the current filter + search.
 /// One row per note — title, two-line preview, relative modified date,
 /// and a row of tag chips. Selection drives the editor in the right
@@ -13,6 +35,10 @@ struct NotesList: View {
     /// (archive, trash, pin) operate on every id here. Empty when the
     /// user is in single-select mode (the default).
     @State private var multiSelection: Set<UUID> = []
+    @AppStorage("tally.notes.sortMode") private var sortModeRaw: String = NotesSortMode.modified.rawValue
+    private var sortMode: NotesSortMode {
+        NotesSortMode(rawValue: sortModeRaw) ?? .modified
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -71,6 +97,26 @@ struct NotesList: View {
             Text("\(filteredNotes.count)")
                 .font(.caption)
                 .foregroundStyle(TallyTheme.muted)
+            Menu {
+                ForEach(NotesSortMode.allCases) { mode in
+                    Button {
+                        sortModeRaw = mode.rawValue
+                    } label: {
+                        Label(mode.label, systemImage: mode.systemImage)
+                        if mode == sortMode {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.caption)
+                    .foregroundStyle(TallyTheme.muted)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Sort: \(sortMode.label)")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -192,14 +238,37 @@ struct NotesList: View {
                 }
             }
         }
-        guard !search.trimmingCharacters(in: .whitespaces).isEmpty else { return base }
+        let resorted = applySort(to: base)
+        guard !search.trimmingCharacters(in: .whitespaces).isEmpty else { return resorted }
         // FTS5: the store's search index handles tokenisation, ranking
         // and prefix matches. We intersect the result set with the
         // filter's base list so the sidebar's archive/trash/tag bucket
         // still constrains the visible matches.
         let matchedIDs = store.searchIDs(matching: search)
         guard !matchedIDs.isEmpty else { return [] }
-        return base.filter { matchedIDs.contains($0.id) }
+        return resorted.filter { matchedIDs.contains($0.id) }
+    }
+
+    /// Apply the user-chosen sort mode while keeping pinned notes at
+    /// the top of every group. NotesStore already pre-sorts
+    /// `activeNotes` pinned-first by modifiedAt, so for the .modified
+    /// mode we can pass through; the other modes re-sort within the
+    /// pinned/un-pinned groups.
+    private func applySort(to notes: [Note]) -> [Note] {
+        switch sortMode {
+        case .modified:
+            return notes
+        case .created:
+            return notes.sorted { a, b in
+                if a.isPinned != b.isPinned { return a.isPinned && !b.isPinned }
+                return a.createdAt > b.createdAt
+            }
+        case .title:
+            return notes.sorted { a, b in
+                if a.isPinned != b.isPinned { return a.isPinned && !b.isPinned }
+                return a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
+            }
+        }
     }
 }
 

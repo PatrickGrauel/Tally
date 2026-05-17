@@ -55,10 +55,21 @@ struct NotesSidebar: View {
                     }
                 }
 
+                if !pinnedTagNodes.isEmpty {
+                    Section("Pinned") {
+                        ForEach(pinnedTagNodes, id: \.path) { node in
+                            TagDisclosureGroup(node: node,
+                                               filter: $filter,
+                                               store: store)
+                        }
+                    }
+                }
                 if !tagTree.children.isEmpty {
                     Section("Tags") {
                         ForEach(tagTree.children, id: \.path) { node in
-                            TagDisclosureGroup(node: node, filter: $filter)
+                            TagDisclosureGroup(node: node,
+                                               filter: $filter,
+                                               store: store)
                         }
                     }
                 }
@@ -146,6 +157,39 @@ struct NotesSidebar: View {
         }.count
     }
 
+    /// Tag paths the user has explicitly pinned via the right-click
+    /// menu. Surfaced as a flat list above the main tag tree so they
+    /// don't get buried under siblings. Each pinned entry stays in
+    /// the regular tree too — pinning is presentation only, not a
+    /// move.
+    private var pinnedTagNodes: [TagNode] {
+        var counts: [String: Int] = [:]
+        var seen: [String: Bool] = [:]
+        for note in store.activeNotes where !note.isArchived {
+            seen.removeAll()
+            for tag in note.tags {
+                var parts: [String] = []
+                for component in tag.split(separator: "/") {
+                    parts.append(String(component))
+                    let path = parts.joined(separator: "/")
+                    if seen[path] == nil {
+                        seen[path] = true
+                        counts[path, default: 0] += 1
+                    }
+                }
+            }
+        }
+        let pinned = store.tagMetadata.values
+            .filter { $0.isPinned }
+            .map { $0.tag }
+            .sorted()
+        return pinned.map { path in
+            let node = TagNode(path: path)
+            node.count = counts[path] ?? 0
+            return node
+        }
+    }
+
     /// Build a forest from all hierarchical tag paths present across
     /// non-archived, non-trashed notes. A note tagged `#work/2026`
     /// contributes the nodes "work" and "work/2026", with the count at
@@ -209,7 +253,10 @@ final class TagNode {
 struct TagDisclosureGroup: View {
     let node: TagNode
     @Binding var filter: NotesFilter
+    @ObservedObject var store: NotesStore
     @State private var expanded: Bool = true
+    @State private var emojiPickerShown: Bool = false
+    @State private var emojiDraft: String = ""
 
     var body: some View {
         if node.children.isEmpty {
@@ -217,7 +264,9 @@ struct TagDisclosureGroup: View {
         } else {
             DisclosureGroup(isExpanded: $expanded) {
                 ForEach(node.children, id: \.path) { child in
-                    TagDisclosureGroup(node: child, filter: $filter)
+                    TagDisclosureGroup(node: child,
+                                       filter: $filter,
+                                       store: store)
                 }
             } label: {
                 tagRow
@@ -225,13 +274,30 @@ struct TagDisclosureGroup: View {
         }
     }
 
+    private var meta: NotesDatabase.TagMeta? { store.tagMetadata[node.path] }
+
     private var tagRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "number")
-                .foregroundStyle(TallyTheme.muted)
-                .frame(width: 14)
+            // Custom emoji takes precedence over the default `#` glyph.
+            // Bear's per-tag pancake / plant / etc. icons are this
+            // feature exactly.
+            if let emoji = meta?.emoji, !emoji.isEmpty {
+                Text(emoji)
+                    .font(.system(size: 13))
+                    .frame(width: 14)
+            } else {
+                Image(systemName: "number")
+                    .foregroundStyle(TallyTheme.muted)
+                    .frame(width: 14)
+            }
             Text(node.displayLabel)
                 .foregroundStyle(TallyTheme.text)
+            if meta?.isPinned == true {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(TallyTheme.accent)
+                    .rotationEffect(.degrees(45))
+            }
             Spacer()
             if node.count > 0 {
                 Text("\(node.count)")
@@ -240,5 +306,86 @@ struct TagDisclosureGroup: View {
             }
         }
         .tag(NotesFilter.tag(node.path))
+        .contextMenu {
+            Button(meta?.isPinned == true ? "Unpin tag" : "Pin tag") {
+                store.toggleTagPinned(node.path)
+            }
+            Button("Set emoji…") {
+                emojiDraft = meta?.emoji ?? ""
+                emojiPickerShown = true
+            }
+            if meta?.emoji != nil {
+                Button("Remove emoji") {
+                    store.setTagEmoji(node.path, emoji: nil)
+                }
+            }
+        }
+        .sheet(isPresented: $emojiPickerShown) {
+            EmojiSheet(
+                tag: node.path,
+                draft: $emojiDraft,
+                onSet: { value in
+                    store.setTagEmoji(node.path, emoji: value)
+                    emojiPickerShown = false
+                },
+                onCancel: { emojiPickerShown = false }
+            )
+        }
+    }
+}
+
+/// Tiny modal for picking the emoji to attach to a tag. Bear-style
+/// "type any emoji or paste one." We don't include a full emoji
+/// picker grid (NSPopover-based emoji picker exists but is fiddly to
+/// embed); the user types or pastes a single emoji character.
+private struct EmojiSheet: View {
+    let tag: String
+    @Binding var draft: String
+    let onSet: (String) -> Void
+    let onCancel: () -> Void
+
+    /// Curated quick picks. Tap to choose without typing. Covers the
+    /// most-common tag-icon use cases (work/personal/health/etc.).
+    private let suggestions: [String] = [
+        "📝", "💼", "🏠", "🧠", "📚", "✈️", "🍳", "💪",
+        "🩺", "🌿", "🎯", "📅", "💡", "🛠️", "🎵", "🐾",
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Emoji for #\(tag)")
+                .font(.headline)
+                .foregroundStyle(TallyTheme.text)
+
+            Text("Type or paste a single emoji, or pick a suggestion below.")
+                .font(.caption)
+                .foregroundStyle(TallyTheme.muted)
+
+            HStack {
+                TextField("emoji", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 80)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 8),
+                          spacing: 6) {
+                    ForEach(suggestions, id: \.self) { e in
+                        Button(e) { draft = e }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 18))
+                            .frame(width: 26, height: 26)
+                    }
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { onCancel() }
+                Button("Set") { onSet(draft) }
+                    .keyboardShortcut(.return)
+                    .buttonStyle(.borderedProminent)
+                    .tint(TallyTheme.accent)
+                    .disabled(draft.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
     }
 }

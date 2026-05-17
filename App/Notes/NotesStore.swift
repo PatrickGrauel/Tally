@@ -17,6 +17,8 @@ import SwiftUI
 @MainActor
 final class NotesStore: ObservableObject {
     @Published private(set) var saved: [Note] = []
+    /// Per-tag metadata (emoji, pinned). Keyed by tag string.
+    @Published private(set) var tagMetadata: [String: NotesDatabase.TagMeta] = [:]
 
     private let database: NotesDatabase
 
@@ -30,9 +32,42 @@ final class NotesStore: ObservableObject {
         // Idempotent — skips work once the migration flag is set.
         database.importLegacyUserDefaultsIfNeeded()
         reload()
+        reloadTagMetadata()
         // Wire the backup service so its launch-scan can import any
         // notes edited on another Mac while this one was offline.
         NotesBackupService.shared.attach(store: self)
+    }
+
+    // MARK: - Tag metadata
+
+    func reloadTagMetadata() {
+        do {
+            let rows = try database.allTagMetadata()
+            tagMetadata = Dictionary(uniqueKeysWithValues: rows.map { ($0.tag, $0) })
+        } catch {
+            print("NotesStore.reloadTagMetadata failed: \(error)")
+        }
+    }
+
+    func setTagEmoji(_ tag: String, emoji: String?) {
+        var meta = tagMetadata[tag] ?? NotesDatabase.TagMeta(tag: tag, emoji: nil, isPinned: false)
+        meta.emoji = (emoji?.isEmpty == true) ? nil : emoji
+        save(meta: meta)
+    }
+
+    func toggleTagPinned(_ tag: String) {
+        var meta = tagMetadata[tag] ?? NotesDatabase.TagMeta(tag: tag, emoji: nil, isPinned: false)
+        meta.isPinned.toggle()
+        save(meta: meta)
+    }
+
+    private func save(meta: NotesDatabase.TagMeta) {
+        do {
+            try database.setTagMetadata(meta)
+            tagMetadata[meta.tag] = meta
+        } catch {
+            print("NotesStore.save(meta) failed: \(error)")
+        }
     }
 
     // MARK: - Writes

@@ -111,7 +111,55 @@ final class NotesDatabase {
                 t.add(column: "isPinned", .integer).notNull().defaults(to: 0)
             }
         }
+
+        // v3: tag metadata — emoji and pinned state per hashtag.
+        // Keyed by the tag string itself so a tag that nobody uses
+        // anymore quietly disappears from the sidebar without
+        // garbage-collecting its row here.
+        migrator.registerMigration("v3-tagMetadata") { db in
+            try db.create(table: "tag_metadata") { t in
+                t.column("tag", .text).primaryKey()
+                t.column("emoji", .text)               // nullable
+                t.column("isPinned", .integer).notNull().defaults(to: 0)
+            }
+        }
         return migrator
+    }
+
+    // MARK: - Tag metadata
+
+    /// A single row in `tag_metadata`. We expose this as a value
+    /// type so the SwiftUI sidebar can observe a snapshot rather
+    /// than the live row.
+    struct TagMeta: Equatable {
+        var tag: String
+        var emoji: String?
+        var isPinned: Bool
+    }
+
+    func allTagMetadata() throws -> [TagMeta] {
+        try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM tag_metadata").map { row in
+                TagMeta(
+                    tag: row["tag"],
+                    emoji: row["emoji"] as String?,
+                    isPinned: (row["isPinned"] as Int? ?? 0) != 0
+                )
+            }
+        }
+    }
+
+    /// Upsert one tag's metadata row.
+    func setTagMetadata(_ meta: TagMeta) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO tag_metadata(tag, emoji, isPinned)
+                VALUES (?, ?, ?)
+                ON CONFLICT(tag) DO UPDATE SET
+                    emoji = excluded.emoji,
+                    isPinned = excluded.isPinned
+                """, arguments: [meta.tag, meta.emoji, meta.isPinned ? 1 : 0])
+        }
     }
 
     // MARK: - CRUD
