@@ -22,6 +22,9 @@ packages:
     path: Packages/TallyEngine
   TallyAviation:
     path: Packages/TallyAviation
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "6.29.0"
 
 targets:
   Vektor:
@@ -38,6 +41,8 @@ targets:
     dependencies:
       - package: TallyEngine
       - package: TallyAviation
+      - package: GRDB
+        product: GRDB
     info:
       path: App/Resources/Info.plist
       properties:

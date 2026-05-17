@@ -138,10 +138,13 @@ struct NotesList: View {
             }
         }
         guard !search.trimmingCharacters(in: .whitespaces).isEmpty else { return base }
-        let q = search.lowercased()
-        return base.filter { note in
-            note.body.lowercased().contains(q)
-        }
+        // FTS5: the store's search index handles tokenisation, ranking
+        // and prefix matches. We intersect the result set with the
+        // filter's base list so the sidebar's archive/trash/tag bucket
+        // still constrains the visible matches.
+        let matchedIDs = store.searchIDs(matching: search)
+        guard !matchedIDs.isEmpty else { return [] }
+        return base.filter { matchedIDs.contains($0.id) }
     }
 }
 

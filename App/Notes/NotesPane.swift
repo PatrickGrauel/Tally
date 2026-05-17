@@ -100,9 +100,15 @@ struct NotesPane: View {
                 !note.isArchived && note.tags.contains { $0 == p || $0.hasPrefix("\(p)/") }
             }
         }
-        let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        let filtered = q.isEmpty ? base : base.filter { $0.body.lowercased().contains(q) }
-        return filtered.map(\.id)
+        let trimmed = search.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            return base.map(\.id)
+        }
+        // FTS5: same indexed search used by NotesList. We intersect so
+        // the visible-IDs set keeps in lockstep with what the list
+        // column is actually showing.
+        let matchedIDs = store.searchIDs(matching: trimmed)
+        return base.filter { matchedIDs.contains($0.id) }.map(\.id)
     }
 
 }
