@@ -462,17 +462,14 @@ struct MarkdownTextEditor: NSViewRepresentable {
         private func applyCheckboxStyle(storage: NSTextStorage,
                                         range: NSRange,
                                         checked: Bool) {
-            let baseSize = CGFloat(parent.appearance.fontSize)
-            let theme = parent.appearance.theme
-            let tint: NSColor = checked
-                ? NSColor(theme.accent)
-                : NSColor(theme.muted).withAlphaComponent(0.85)
-            // Render the bracket triplet as a single semibold,
-            // slightly-larger monospaced glyph cluster so it reads as
-            // "this is a checkbox" rather than three separate chars.
+            // Hide the literal `[ ]` / `[x]` characters — the
+            // NotesEditorTextView.draw override paints a real SF
+            // Symbol checkbox on top of the (still-laid-out) range.
+            // The `vektor.checkbox` attribute carries the state so
+            // the overlay knows which icon to render and the
+            // mouseDown handler knows where to toggle.
             let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.monospacedSystemFont(ofSize: baseSize + 1, weight: .semibold),
-                .foregroundColor: tint,
+                .foregroundColor: NSColor.clear,
                 Self.checkboxAttributeKey: checked,
             ]
             storage.addAttributes(attrs, range: range)
@@ -942,6 +939,70 @@ final class NotesEditorTextView: NSTextView {
             return
         }
         super.insertNewline(sender)
+    }
+
+    /// Paint actual checkbox icons on top of every hidden `[ ]` /
+    /// `[x]` range. The underlying text still gets laid out (so the
+    /// caret behaves correctly when navigating through the source
+    /// chars), but the brackets render `.clear` and we draw the
+    /// SF Symbol image in the space they occupy.
+    override func draw(_ rect: NSRect) {
+        super.draw(rect)
+        drawCheckboxOverlays(in: rect)
+    }
+
+    private func drawCheckboxOverlays(in dirtyRect: NSRect) {
+        guard let storage = textStorage,
+              let layoutManager,
+              let textContainer else { return }
+        let origin = textContainerOrigin
+        let fullRange = NSRange(location: 0, length: storage.length)
+        // Match the editor font size so the icon scales with the
+        // user's typography preference.
+        let baseSize: CGFloat = font?.pointSize ?? 14
+        let iconSize = baseSize + 2
+
+        storage.enumerateAttribute(MarkdownTextEditor.Coordinator.checkboxAttributeKey,
+                                   in: fullRange) { value, charRange, _ in
+            guard let checked = value as? Bool else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: charRange,
+                                                      actualCharacterRange: nil)
+            let bounding = layoutManager.boundingRect(forGlyphRange: glyphRange,
+                                                      in: textContainer)
+            let originRect = bounding.offsetBy(dx: origin.x, dy: origin.y)
+            guard originRect.intersects(dirtyRect) else { return }
+
+            // Vertical-center the icon in the line height. Slight
+            // y-bias upward to align with the visual baseline of the
+            // line so the icon doesn't sit awkwardly low next to text.
+            let y = originRect.midY - iconSize / 2 - 1
+            let drawRect = NSRect(x: originRect.minX,
+                                  y: y,
+                                  width: iconSize,
+                                  height: iconSize)
+
+            let symbolName = checked ? "checkmark.square.fill" : "square"
+            let cfg = NSImage.SymbolConfiguration(pointSize: baseSize, weight: .regular)
+            guard let symbol = NSImage(systemSymbolName: symbolName,
+                                       accessibilityDescription: nil)?
+                    .withSymbolConfiguration(cfg) else { return }
+
+            // Tint via a draw-into-image pass — destinationIn keeps
+            // only the pixels where the symbol is opaque, then we
+            // fill with the desired colour.
+            let tint: NSColor = checked
+                ? NSColor.systemOrange
+                : NSColor.secondaryLabelColor
+            symbol.isTemplate = true
+            let tinted = NSImage(size: symbol.size, flipped: false) { rect in
+                tint.set()
+                rect.fill()
+                symbol.draw(in: rect, from: .zero,
+                            operation: .destinationIn, fraction: 1.0)
+                return true
+            }
+            tinted.draw(in: drawRect)
+        }
     }
 
     /// Click on a checkbox glyph → toggle its state. Other clicks
