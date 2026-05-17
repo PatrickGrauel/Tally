@@ -161,6 +161,24 @@ struct MarkdownTextEditor: NSViewRepresentable {
                 applyCheckboxStyle(storage: storage, range: cb.markerRange, checked: cb.checked)
             }
 
+            // 4. Bullet markers — hide the literal `-` / `*` / `+`
+            //    char on plain bullet lines so the drawRect overlay
+            //    can paint a real `•` glyph in its place.
+            for bulletRange in bulletMarkerRanges(in: source) {
+                storage.addAttribute(.foregroundColor, value: NSColor.clear, range: bulletRange)
+                storage.addAttribute(Self.bulletAttributeKey, value: true, range: bulletRange)
+            }
+
+            // 5. Tables — when we detect a markdown table block,
+            //    parse the cells and stash the structure under a
+            //    custom attribute over the full block range. The
+            //    drawRect overlay reads the attribute and draws a
+            //    real table on top of the (hidden) source text.
+            for table in tableBlockRanges(in: source) {
+                storage.addAttribute(.foregroundColor, value: NSColor.clear, range: table.range)
+                storage.addAttribute(Self.tableAttributeKey, value: table.data, range: table.range)
+            }
+
             // 4. Inline images.
             for imageRange in inlineImageRanges(in: source) {
                 applyImageAttachment(storage: storage, range: imageRange, source: source)
@@ -432,6 +450,123 @@ struct MarkdownTextEditor: NSViewRepresentable {
             let checked: Bool
         }
 
+        // MARK: - Bullets
+
+        /// 1-char ranges covering every plain-bullet marker (`-` /
+        /// `*` / `+`) at the start of a line. Excludes checkbox lines
+        /// (those are caught by `checkboxRanges` and rendered by the
+        /// checkbox overlay) and numbered-list items.
+        private func bulletMarkerRanges(in source: String) -> [NSRange] {
+            // Match the marker char *only* — the regex's lookahead
+            // requires a following space + something that isn't `[`
+            // (so we don't double-process the `-` of a checkbox line).
+            let pattern = #"(?m)^[ \t]*([-*+])(?= (?!\[))"#
+            let ns = source as NSString
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+            return regex.matches(in: source,
+                                 range: NSRange(location: 0, length: ns.length))
+                .compactMap { m in m.numberOfRanges >= 2 ? m.range(at: 1) : nil }
+        }
+
+        // MARK: - Tables
+
+        /// Minimal parsed representation of a markdown pipe-table.
+        /// Kept here (not in the tokenizer) because nothing else
+        /// needs to know about table structure.
+        struct TableData {
+            var headers: [String]
+            var rows: [[String]]
+        }
+
+        private struct TableBlock {
+            let range: NSRange
+            let data: TableData
+        }
+
+        /// Scan the source for markdown table blocks. A block is a
+        /// run of consecutive non-empty `|...|` lines that includes
+        /// a separator line (`|---|---|`). Returns the source-range
+        /// of every block plus the parsed `TableData`.
+        private func tableBlockRanges(in source: String) -> [TableBlock] {
+            let ns = source as NSString
+            var results: [TableBlock] = []
+            var i = 0
+            while i < ns.length {
+                let lineRange = ns.lineRange(for: NSRange(location: i, length: 0))
+                let lineText = ns.substring(with: lineRange)
+                let trimmed = lineText.trimmingCharacters(in: .whitespacesAndNewlines)
+                // A table candidate starts with `|` and ends with `|`.
+                if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") {
+                    // Gather every consecutive `|...|` line.
+                    var blockEnd = lineRange.location + lineRange.length
+                    var lines: [String] = [trimmed]
+                    var cursor = blockEnd
+                    while cursor < ns.length {
+                        let nextRange = ns.lineRange(for: NSRange(location: cursor, length: 0))
+                        let nextText = ns.substring(with: nextRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                        if nextText.hasPrefix("|") && nextText.hasSuffix("|") {
+                            lines.append(nextText)
+                            blockEnd = nextRange.location + nextRange.length
+                            cursor = blockEnd
+                        } else {
+                            break
+                        }
+                    }
+                    // A real table has ≥ 3 lines (header / separator
+                    // / one or more data rows) AND a separator line.
+                    let separatorIdx = lines.firstIndex {
+                        // Match `|---|---|` (allow trailing spaces
+                        // and alignment colons).
+                        let inner = $0.dropFirst().dropLast()
+                        let cells = inner.split(separator: "|", omittingEmptySubsequences: false)
+                        return !cells.isEmpty && cells.allSatisfy { cell in
+                            let t = cell.trimmingCharacters(in: .whitespaces)
+                            return !t.isEmpty && t.allSatisfy { $0 == "-" || $0 == ":" }
+                        }
+                    }
+                    if lines.count >= 2, let sepIdx = separatorIdx, sepIdx >= 1 {
+                        let parsed = parseTable(lines: lines, separatorIndex: sepIdx)
+                        // Block range: from start of first line to
+                        // end of last (excluding trailing newline so
+                        // the next paragraph isn't part of the hidden
+                        // region).
+                        var endIdx = blockEnd
+                        if endIdx > lineRange.location,
+                           ns.character(at: endIdx - 1) == UInt16(("\n" as Character).asciiValue!) {
+                            endIdx -= 1
+                        }
+                        results.append(TableBlock(
+                            range: NSRange(location: lineRange.location,
+                                           length: endIdx - lineRange.location),
+                            data: parsed
+                        ))
+                        i = blockEnd
+                        continue
+                    }
+                }
+                i = lineRange.location + lineRange.length
+            }
+            return results
+        }
+
+        private func parseTable(lines: [String], separatorIndex: Int) -> TableData {
+            func cells(_ line: String) -> [String] {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                // Strip leading + trailing `|`, split, trim each cell.
+                let inner = trimmed
+                    .dropFirst(trimmed.hasPrefix("|") ? 1 : 0)
+                    .dropLast(trimmed.hasSuffix("|") ? 1 : 0)
+                return inner
+                    .split(separator: "|", omittingEmptySubsequences: false)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+            }
+            let headers = separatorIndex >= 1 ? cells(lines[separatorIndex - 1]) : []
+            let dataLines = (separatorIndex + 1) < lines.count
+                ? Array(lines[(separatorIndex + 1)...]) : []
+            let rows = dataLines.map(cells)
+            return TableData(headers: headers, rows: rows)
+        }
+
         private func checkboxRanges(in source: String) -> [CheckboxToken] {
             // Match `- [ ]` / `- [x]` / `* [ ]` / `* [x]` at start of
             // line (allowing indent). The captured group is the box.
@@ -458,6 +593,17 @@ struct MarkdownTextEditor: NSViewRepresentable {
         /// boolean `checked` state so the click handler knows which
         /// direction to toggle in one read.
         static let checkboxAttributeKey = NSAttributedString.Key("vektor.checkbox")
+
+        /// Plain-bullet marker (`-` / `*` / `+` at line start). The
+        /// drawRect overlay paints a `•` glyph in the space the
+        /// hidden character occupies. Value is unused — presence is
+        /// the signal.
+        static let bulletAttributeKey = NSAttributedString.Key("vektor.bullet")
+
+        /// Markdown-table block. Value is the parsed `TableData`
+        /// the drawRect overlay uses to render real cell borders +
+        /// per-cell text in place of the hidden source markdown.
+        static let tableAttributeKey = NSAttributedString.Key("vektor.table")
 
         private func applyCheckboxStyle(storage: NSTextStorage,
                                         range: NSRange,
@@ -858,6 +1004,15 @@ struct MarkdownTextEditor: NSViewRepresentable {
     }
 }
 
+private extension Array {
+    /// Out-of-bounds index returns nil rather than crashing — keeps
+    /// the table renderer tolerant of ragged rows (a markdown table
+    /// with a row that has fewer cells than the header).
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}
+
 /// Inline slash-command snippets. Typing `/<keyword> ` at a line start
 /// (or after whitespace) is replaced with the corresponding markdown
 /// shape. Bear's `/` command palette in spirit; simpler in mechanics
@@ -949,6 +1104,175 @@ final class NotesEditorTextView: NSTextView {
     override func draw(_ rect: NSRect) {
         super.draw(rect)
         drawCheckboxOverlays(in: rect)
+        drawBulletOverlays(in: rect)
+        drawTableOverlays(in: rect)
+    }
+
+    // MARK: - Bullet overlay
+
+    private func drawBulletOverlays(in dirtyRect: NSRect) {
+        guard let storage = textStorage,
+              let layoutManager,
+              let textContainer else { return }
+        let origin = textContainerOrigin
+        let baseSize: CGFloat = font?.pointSize ?? 14
+        let fullRange = NSRange(location: 0, length: storage.length)
+        storage.enumerateAttribute(MarkdownTextEditor.Coordinator.bulletAttributeKey,
+                                   in: fullRange) { value, charRange, _ in
+            guard value != nil else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: charRange,
+                                                      actualCharacterRange: nil)
+            let bounding = layoutManager.boundingRect(forGlyphRange: glyphRange,
+                                                      in: textContainer)
+            let originRect = bounding.offsetBy(dx: origin.x, dy: origin.y)
+            guard originRect.intersects(dirtyRect) else { return }
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: baseSize + 2, weight: .bold),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ]
+            let glyph = NSAttributedString(string: "•", attributes: attrs)
+            let glyphSize = glyph.size()
+            let drawAt = NSPoint(
+                x: originRect.midX - glyphSize.width / 2,
+                y: originRect.midY - glyphSize.height / 2 - 1
+            )
+            glyph.draw(at: drawAt)
+        }
+    }
+
+    // MARK: - Table overlay
+
+    private func drawTableOverlays(in dirtyRect: NSRect) {
+        guard let storage = textStorage,
+              let layoutManager,
+              let textContainer else { return }
+        let origin = textContainerOrigin
+        let baseSize: CGFloat = font?.pointSize ?? 14
+        let fullRange = NSRange(location: 0, length: storage.length)
+        storage.enumerateAttribute(MarkdownTextEditor.Coordinator.tableAttributeKey,
+                                   in: fullRange) { value, charRange, _ in
+            guard let table = value as? MarkdownTextEditor.Coordinator.TableData else { return }
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: charRange,
+                                                      actualCharacterRange: nil)
+            let bounding = layoutManager.boundingRect(forGlyphRange: glyphRange,
+                                                      in: textContainer)
+            let originRect = bounding.offsetBy(dx: origin.x, dy: origin.y)
+            guard originRect.intersects(dirtyRect) else { return }
+            renderTable(table, in: originRect, baseSize: baseSize)
+        }
+    }
+
+    /// Draw a single markdown table inline. Cell widths are computed
+    /// once from the content (longest cell per column), capped so the
+    /// table never overflows the bounding rect. Header row gets a
+    /// subtle accent-tint background; data rows get a 1-pt cell
+    /// border in the system separator colour.
+    private func renderTable(_ table: MarkdownTextEditor.Coordinator.TableData,
+                             in containerRect: NSRect,
+                             baseSize: CGFloat) {
+        guard !table.headers.isEmpty else { return }
+        let colCount = table.headers.count
+        let cellPadH: CGFloat = 8
+        let cellPadV: CGFloat = 6
+        let rowHeight = baseSize * 1.8
+        let totalRows = 1 + table.rows.count
+        let tableHeight = CGFloat(totalRows) * rowHeight
+        let tableWidth = min(containerRect.width, 720)
+
+        // Compute column widths proportional to longest cell per
+        // column (header or data). Constrains each col to a min/max
+        // so a single very-long cell doesn't push the others to
+        // zero. The remainder splits evenly across non-saturated cols.
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: baseSize - 1)
+        ]
+        let columnWidths: [CGFloat] = {
+            var raw: [CGFloat] = Array(repeating: 0, count: colCount)
+            for c in 0..<colCount {
+                let header = table.headers[safe: c] ?? ""
+                let headerWidth = (header as NSString).size(withAttributes: attrs).width
+                var widest = headerWidth
+                for row in table.rows {
+                    let cell = row[safe: c] ?? ""
+                    let w = (cell as NSString).size(withAttributes: attrs).width
+                    if w > widest { widest = w }
+                }
+                raw[c] = widest + cellPadH * 2
+            }
+            let total = raw.reduce(0, +)
+            if total <= tableWidth { return raw }
+            let scale = tableWidth / total
+            return raw.map { $0 * scale }
+        }()
+
+        // Background (header tint band) + grid lines.
+        let theme = NSAppearance.currentDrawing()
+            .bestMatch(from: [.aqua, .darkAqua]) ?? .aqua
+        let isDark = theme == .darkAqua
+        let borderColor = isDark
+            ? NSColor.white.withAlphaComponent(0.18)
+            : NSColor.black.withAlphaComponent(0.18)
+        let headerTint = NSColor.systemOrange.withAlphaComponent(0.10)
+
+        let tableRect = NSRect(
+            x: containerRect.minX,
+            y: containerRect.minY,
+            width: columnWidths.reduce(0, +),
+            height: tableHeight
+        )
+
+        // Header background.
+        headerTint.setFill()
+        NSRect(x: tableRect.minX, y: tableRect.minY,
+               width: tableRect.width, height: rowHeight).fill()
+
+        // Cell text + vertical separators.
+        for rowIdx in 0..<totalRows {
+            let cellsRow: [String] = rowIdx == 0
+                ? table.headers
+                : (table.rows[safe: rowIdx - 1] ?? [])
+            let isHeader = rowIdx == 0
+            let cellAttrs: [NSAttributedString.Key: Any] = [
+                .font: isHeader
+                    ? NSFont.systemFont(ofSize: baseSize - 1, weight: .semibold)
+                    : NSFont.systemFont(ofSize: baseSize - 1),
+                .foregroundColor: NSColor.labelColor,
+            ]
+            var x = tableRect.minX
+            let y = tableRect.minY + CGFloat(rowIdx) * rowHeight
+            for col in 0..<colCount {
+                let cellW = columnWidths[col]
+                let text = cellsRow[safe: col] ?? ""
+                let textAttr = NSAttributedString(string: text, attributes: cellAttrs)
+                let textSize = textAttr.size()
+                textAttr.draw(at: NSPoint(
+                    x: x + cellPadH,
+                    y: y + (rowHeight - textSize.height) / 2 - 1
+                ))
+                x += cellW
+            }
+        }
+
+        // Outer border + horizontal grid lines.
+        borderColor.setStroke()
+        let path = NSBezierPath()
+        path.lineWidth = 1.0
+        // Outer rectangle.
+        path.appendRect(tableRect)
+        // Row dividers.
+        for r in 1..<totalRows {
+            let y = tableRect.minY + CGFloat(r) * rowHeight
+            path.move(to: NSPoint(x: tableRect.minX, y: y))
+            path.line(to: NSPoint(x: tableRect.maxX, y: y))
+        }
+        // Column dividers.
+        var x = tableRect.minX
+        for col in 0..<(colCount - 1) {
+            x += columnWidths[col]
+            path.move(to: NSPoint(x: x, y: tableRect.minY))
+            path.line(to: NSPoint(x: x, y: tableRect.maxY))
+        }
+        path.stroke()
     }
 
     private func drawCheckboxOverlays(in dirtyRect: NSRect) {
