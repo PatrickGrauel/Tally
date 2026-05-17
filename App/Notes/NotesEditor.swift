@@ -55,7 +55,10 @@ struct NotesEditor: View {
                             trash(note)
                         }
                     }
+                    Divider()
                 }
+                Button("Export all notes…") { exportAllNotes() }
+                Button("Import notes from folder…") { importNotes() }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -65,6 +68,51 @@ struct NotesEditor: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+    }
+
+    // MARK: - Export / Import
+
+    private func exportAllNotes() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Export"
+        panel.message = "Choose a folder to export your notes into. Tip: put it inside iCloud Drive (Mobile Documents) for automatic sync across Macs."
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        do {
+            let count = try NotesExporter.exportAll(from: store, to: folder)
+            let alert = NSAlert()
+            alert.messageText = "Exported \(count) note\(count == 1 ? "" : "s")"
+            alert.informativeText = "Markdown files plus an `assets/` folder were written to \(folder.lastPathComponent)."
+            alert.alertStyle = .informational
+            alert.runModal()
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+        }
+    }
+
+    private func importNotes() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Import"
+        panel.message = "Choose a folder of .md files to import."
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        do {
+            let (imported, updated) = try NotesImporter.importAll(from: folder, into: store)
+            let alert = NSAlert()
+            alert.messageText = "Import complete"
+            alert.informativeText = "\(imported) new note\(imported == 1 ? "" : "s") imported, \(updated) existing note\(updated == 1 ? "" : "s") updated."
+            alert.alertStyle = .informational
+            alert.runModal()
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+        }
     }
 
     // MARK: - Content
