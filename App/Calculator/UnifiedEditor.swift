@@ -168,27 +168,49 @@ final class UnifiedCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDeleg
 
     /// Per-keystroke syntax highlighting, applied DURING the storage
     /// edit cycle so the new character lands with the right colour.
+    /// Re-colors only the lines intersecting `editedRange` — for a
+    /// typical edit that's 1–2 lines instead of the whole document,
+    /// keeping keystroke cost O(1) regardless of doc size.
     func textStorage(_ textStorage: NSTextStorage,
                      didProcessEditing editedMask: NSTextStorageEditActions,
                      range editedRange: NSRange,
                      changeInLength delta: Int) {
         guard editedMask.contains(.editedCharacters) else { return }
-        Self.applyLineColors(to: textStorage)
+        Self.applyLineColors(to: textStorage, in: editedRange)
     }
 
-    /// Walks the storage paragraph-by-paragraph and stamps each line
-    /// with a colour by prefix: `#` → accent, `//` → muted, else
-    /// default text. Cheap enough to run on every keystroke for
-    /// Vektor-sized documents.
+    /// Full-document colour pass. Used for the initial render and for
+    /// bulk text replacements (document switch) where the storage
+    /// delegate path doesn't fire on a per-line basis.
     static func applyLineColors(to storage: NSTextStorage) {
+        let fullText = storage.string as NSString
+        applyLineColors(to: storage,
+                        in: NSRange(location: 0, length: fullText.length))
+    }
+
+    /// Walks the storage line-by-line within the line-aligned expansion
+    /// of `range` and stamps each line with a colour by prefix:
+    /// `#` → accent, `//` → muted, else default text.
+    ///
+    /// Attribute-only edits (which is all this method makes) don't
+    /// trigger `.editedCharacters`, so re-stamping from inside the
+    /// storage delegate doesn't recurse.
+    static func applyLineColors(to storage: NSTextStorage, in range: NSRange) {
         let fullText = storage.string as NSString
         let total = fullText.length
         guard total > 0 else { return }
+        // Clamp to valid bounds — `editedRange` post-edit can in
+        // principle land at `total` for an insert-at-end.
+        let safeLoc = min(max(0, range.location), total)
+        let safeLen = min(max(0, range.length), total - safeLoc)
+        let scope = fullText.lineRange(for: NSRange(location: safeLoc, length: safeLen))
+
         let defaultColor = NSColor(TallyTheme.text)
         let headerColor  = NSColor(TallyTheme.accent)
         let commentColor = NSColor(TallyTheme.muted)
-        var loc = 0
-        while loc < total {
+        var loc = scope.location
+        let end = scope.location + scope.length
+        while loc < end {
             let lineRange = fullText.lineRange(for: NSRange(location: loc, length: 0))
             let lineString = fullText.substring(with: lineRange)
             let trimmed = lineString.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -637,5 +659,65 @@ final class GutterView: NSView {
                                 options: [.usesLineFragmentOrigin, .usesFontLeading])
             }
         }
+    }
+
+    // MARK: - Accessibility
+    //
+    // Results are drawn directly into the view via `NSAttributedString.draw`,
+    // so VoiceOver has no per-row hooks unless we synthesise them. We expose
+    // the gutter as a `.group` and advertise one `NSAccessibilityElement` per
+    // result row, positioned at the same y the renderer drew it. Each row's
+    // value is `"<computed value>. <annotation>"` so a screen-reader user
+    // hears both the result and any freshness / age label.
+
+    override func isAccessibilityElement() -> Bool { true }
+
+    override func accessibilityRole() -> NSAccessibility.Role? { .group }
+
+    override func accessibilityLabel() -> String? { "Calculator results" }
+
+    override func accessibilityChildren() -> [Any]? {
+        let textWidth = max(0, bounds.width - horizontalPadding * 2)
+        guard textWidth > 0 else { return [] }
+        var elements: [NSAccessibilityElement] = []
+        elements.reserveCapacity(results.count)
+        for r in results {
+            guard let y = lineYPositions[r.line] else { continue }
+            let value = renderValue(r)
+            let annotation = renderAnnotation(r)
+            let valueText = value.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            let annotationText = annotation?.string.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            // Skip empty rows so VO doesn't read "blank" between content.
+            if valueText.isEmpty && annotationText.isEmpty { continue }
+
+            let valueRect = value.boundingRect(
+                with: NSSize(width: textWidth, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            )
+            let annHeight: CGFloat = annotation.map {
+                $0.boundingRect(
+                    with: NSSize(width: textWidth, height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading]
+                ).height
+            } ?? 0
+            let height = max(rowHeight, valueRect.height) + annHeight
+
+            let element = NSAccessibilityElement()
+            element.setAccessibilityRole(.staticText)
+            element.setAccessibilityParent(self)
+            element.setAccessibilityFrameInParentSpace(
+                NSRect(x: horizontalPadding, y: y, width: textWidth, height: height)
+            )
+            element.setAccessibilityLabel("Result for line \(r.line + 1)")
+            let combined: String = {
+                if !valueText.isEmpty && !annotationText.isEmpty {
+                    return "\(valueText). \(annotationText)"
+                }
+                return valueText.isEmpty ? annotationText : valueText
+            }()
+            element.setAccessibilityValue(combined)
+            elements.append(element)
+        }
+        return elements
     }
 }
