@@ -68,7 +68,7 @@ Vektor is distributed as source. The steps below produce a regular `Vektor.app` 
 brew install xcodegen node
 
 # Clone and build
-git clone https://github.com/PatrickGrauel/Tally.git Vektor
+git clone https://github.com/PatrickGrauel/Vektor.git
 cd Vektor
 xcodegen generate
 (cd JS && npm install && npm run build)
