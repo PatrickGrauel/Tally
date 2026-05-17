@@ -15,6 +15,7 @@ struct NotesEditor: View {
     @State private var draftSourceID: UUID?
     @State private var saveWorkItem: DispatchWorkItem?
     @StateObject private var controller = NotesEditorController()
+    @ObservedObject private var appearance: NotesAppearanceSettings = .shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,7 +27,7 @@ struct NotesEditor: View {
                 FormattingBar(controller: controller)
             }
         }
-        .background(TallyTheme.background)
+        .background(appearance.theme.background)
         .onAppear {
             loadDraft()
             wireSuggestionProviders()
@@ -61,6 +62,8 @@ struct NotesEditor: View {
                 Button("Import notes from folder…") { importNotes() }
                 Divider()
                 backupMenuSection
+                Divider()
+                viewSettingsMenu
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -123,6 +126,61 @@ struct NotesEditor: View {
         return f.localizedString(for: date, relativeTo: Date())
     }
 
+    /// View-settings submenu: theme / font / reading width / font
+    /// size. The choices live in NotesAppearanceSettings as
+    /// @AppStorage so they persist across launches.
+    @ViewBuilder
+    private var viewSettingsMenu: some View {
+        Menu("Theme") {
+            ForEach(NotesTheme.allCases) { t in
+                Button {
+                    appearance.theme = t
+                } label: {
+                    HStack {
+                        Text(t.label)
+                        if appearance.theme == t { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        }
+        Menu("Font") {
+            ForEach(NotesFont.allCases) { f in
+                Button {
+                    appearance.font = f
+                } label: {
+                    HStack {
+                        Text(f.label)
+                        if appearance.font == f { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        }
+        Menu("Reading width") {
+            ForEach(NotesReadingWidth.allCases) { w in
+                Button {
+                    appearance.readingWidth = w
+                } label: {
+                    HStack {
+                        Text(w.label)
+                        if appearance.readingWidth == w { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        }
+        Menu("Font size") {
+            ForEach([12, 13, 14, 15, 16, 17, 18, 20], id: \.self) { size in
+                Button {
+                    appearance.fontSize = Double(size)
+                } label: {
+                    HStack {
+                        Text("\(size) pt")
+                        if Int(appearance.fontSize) == size { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        }
+    }
+
     private func importNotes() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -151,7 +209,16 @@ struct NotesEditor: View {
         if note == nil {
             placeholder
         } else {
-            MarkdownTextEditor(text: $draftBody, controller: controller)
+            // Reading width: cap the editor's text column at the
+            // chosen width and centre within whatever extra space
+            // the window has. `.unlimited` falls through (.infinity).
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                MarkdownTextEditor(text: $draftBody, controller: controller)
+                    .frame(maxWidth: appearance.readingWidth.maxWidth)
+                Spacer(minLength: 0)
+            }
+            .background(appearance.theme.background)
         }
     }
 

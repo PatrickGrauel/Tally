@@ -24,6 +24,7 @@ import AppKit
 struct MarkdownTextEditor: NSViewRepresentable {
     @Binding var text: String
     @ObservedObject var controller: NotesEditorController
+    @ObservedObject var appearance: NotesAppearanceSettings = .shared
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -44,11 +45,12 @@ struct MarkdownTextEditor: NSViewRepresentable {
         textView.smartInsertDeleteEnabled = false
         textView.usesFindBar = true
         textView.textContainerInset = NSSize(width: 24, height: 18)
-        textView.font = .systemFont(ofSize: 14)
-        textView.backgroundColor = NSColor(TallyTheme.background)
+        let baseSize = CGFloat(appearance.fontSize)
+        textView.font = appearance.font.baseFont(size: baseSize)
+        textView.backgroundColor = NSColor(appearance.theme.background)
         textView.drawsBackground = true
-        textView.textColor = NSColor(TallyTheme.text)
-        textView.insertionPointColor = NSColor(TallyTheme.accent)
+        textView.textColor = NSColor(appearance.theme.text)
+        textView.insertionPointColor = NSColor(appearance.theme.accent)
 
         textView.string = text
         context.coordinator.applyHighlighting(to: textView)
@@ -59,12 +61,25 @@ struct MarkdownTextEditor: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NotesEditorTextView else { return }
         controller.textView = textView
+        // Keep the chrome in sync with live appearance changes —
+        // theme picker updates re-render through this path.
+        let baseSize = CGFloat(appearance.fontSize)
+        let wantFont = appearance.font.baseFont(size: baseSize)
+        if textView.font != wantFont {
+            textView.font = wantFont
+        }
+        textView.backgroundColor = NSColor(appearance.theme.background)
+        textView.textColor = NSColor(appearance.theme.text)
+        textView.insertionPointColor = NSColor(appearance.theme.accent)
         if textView.string != text {
             let selected = textView.selectedRanges
             textView.string = text
             textView.selectedRanges = selected
-            context.coordinator.applyHighlighting(to: textView)
         }
+        // Re-apply highlighting unconditionally — font and theme
+        // changes don't trigger textDidChange, so the inline styling
+        // pass needs an explicit kick.
+        context.coordinator.applyHighlighting(to: textView)
     }
 
     // MARK: - Coordinator
@@ -106,10 +121,13 @@ struct MarkdownTextEditor: NSViewRepresentable {
             let full = NSRange(location: 0, length: (tv.string as NSString).length)
             storage.beginEditing()
             // Base attributes — reset every run so we don't accumulate
-            // stale styles from removed tokens.
+            // stale styles from removed tokens. Font + colour come
+            // from the live appearance settings.
+            let baseSize = CGFloat(parent.appearance.fontSize)
+            let baseFont = parent.appearance.font.baseFont(size: baseSize)
             let base: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 14),
-                .foregroundColor: NSColor(TallyTheme.text),
+                .font: baseFont,
+                .foregroundColor: NSColor(parent.appearance.theme.text),
             ]
             storage.setAttributes(base, range: full)
 
@@ -165,55 +183,66 @@ struct MarkdownTextEditor: NSViewRepresentable {
 
         private func attributes(for kind: NoteTokenizer.TokenKind)
         -> [NSAttributedString.Key: Any] {
+            let baseSize = CGFloat(parent.appearance.fontSize)
+            let theme = parent.appearance.theme
+            let chosen = parent.appearance.font
+            let baseFont = chosen.baseFont(size: baseSize)
             switch kind {
             case .tag:
                 return [
-                    .foregroundColor: NSColor(TallyTheme.accent),
-                    .font: NSFont.systemFont(ofSize: 14, weight: .medium),
+                    .foregroundColor: NSColor(theme.accent),
+                    .font: weighted(baseFont, .medium),
                 ]
             case .wikiLink:
                 return [
-                    .foregroundColor: NSColor(TallyTheme.accent),
+                    .foregroundColor: NSColor(theme.accent),
                     .underlineStyle: NSUnderlineStyle.single.rawValue,
                 ]
             case .bold:
-                return [ .font: NSFont.systemFont(ofSize: 14, weight: .semibold) ]
+                return [ .font: weighted(baseFont, .semibold) ]
             case .emphasis:
-                let italic = NSFontManager.shared.convert(
-                    NSFont.systemFont(ofSize: 14),
-                    toHaveTrait: .italicFontMask
-                )
+                let italic = NSFontManager.shared.convert(baseFont,
+                                                          toHaveTrait: .italicFontMask)
                 return [ .font: italic ]
             case .code:
                 return [
-                    .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-                    .foregroundColor: NSColor(TallyTheme.accent),
+                    .font: NSFont.monospacedSystemFont(ofSize: baseSize - 1, weight: .regular),
+                    .foregroundColor: NSColor(theme.accent),
                 ]
             case .heading:
                 return [
-                    .font: NSFont.boldSystemFont(ofSize: 14),
-                    .foregroundColor: NSColor(TallyTheme.text),
+                    .font: weighted(baseFont, .bold),
+                    .foregroundColor: NSColor(theme.text),
                 ]
             case .strikethrough:
                 return [
                     .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-                    .foregroundColor: NSColor(TallyTheme.muted),
+                    .foregroundColor: NSColor(theme.muted),
                 ]
             case .highlight:
                 return [
-                    .backgroundColor: NSColor(TallyTheme.accent).withAlphaComponent(0.25),
+                    .backgroundColor: NSColor(theme.accent).withAlphaComponent(0.25),
                 ]
             case .footnoteRef:
                 // Render as small accent superscript: smaller font +
-                // baseline offset + accent colour. The user still sees
-                // the literal `[^1]` text on the caret line; the offset
-                // handles the "looks like a footnote" visual.
+                // baseline offset + accent colour.
                 return [
-                    .font: NSFont.systemFont(ofSize: 10, weight: .medium),
-                    .foregroundColor: NSColor(TallyTheme.accent),
+                    .font: NSFont.systemFont(ofSize: max(8, baseSize - 4), weight: .medium),
+                    .foregroundColor: NSColor(theme.accent),
                     .baselineOffset: 4 as NSNumber,
                 ]
             }
+        }
+
+        /// Return `font` with `weight` applied while preserving the
+        /// family (so swapping the user's pick between serif and
+        /// system still produces a bold-in-the-same-family).
+        private func weighted(_ font: NSFont, _ weight: NSFont.Weight) -> NSFont {
+            let descriptor = font.fontDescriptor
+                .addingAttributes([
+                    .traits: [NSFontDescriptor.TraitKey.weight: weight]
+                ])
+            return NSFont(descriptor: descriptor, size: font.pointSize) ?? font
         }
 
         /// Apply per-token "syntax marker" styling. Two modes:
@@ -230,8 +259,9 @@ struct MarkdownTextEditor: NSViewRepresentable {
                                               source: String,
                                               caretLine: NSRange) {
             let onCaretLine = NSIntersectionRange(range, caretLine).length > 0
+            let theme = parent.appearance.theme
             let markerColor: NSColor = onCaretLine
-                ? NSColor(TallyTheme.muted).withAlphaComponent(0.55)
+                ? NSColor(theme.muted).withAlphaComponent(0.55)
                 : .clear
 
             switch kind {
@@ -265,20 +295,22 @@ struct MarkdownTextEditor: NSViewRepresentable {
                 }
                 guard hashes > 0 else { return }
                 let markerLen = min(hashes + 1, range.length)
+                let baseSize = CGFloat(parent.appearance.fontSize)
                 let pointSize: CGFloat = {
                     switch hashes {
-                    case 1: return 22
-                    case 2: return 18
-                    case 3: return 16
-                    default: return 14
+                    case 1: return baseSize * 1.55
+                    case 2: return baseSize * 1.30
+                    case 3: return baseSize * 1.15
+                    default: return baseSize
                     }
                 }()
                 let inner = NSRange(location: range.location + markerLen,
                                     length: range.length - markerLen)
                 if inner.length > 0 {
-                    storage.addAttribute(.font,
-                                         value: NSFont.boldSystemFont(ofSize: pointSize),
-                                         range: inner)
+                    let baseFont = parent.appearance.font.baseFont(size: pointSize)
+                    let bold = NSFontManager.shared.convert(baseFont,
+                                                            toHaveTrait: .boldFontMask)
+                    storage.addAttribute(.font, value: bold, range: inner)
                 }
                 styleMarker(storage,
                             NSRange(location: range.location, length: markerLen),
@@ -335,8 +367,13 @@ struct MarkdownTextEditor: NSViewRepresentable {
         }
 
         private func styleCodeBlock(storage: NSTextStorage, range: NSRange) {
-            let mono = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+            let baseSize = CGFloat(parent.appearance.fontSize)
+            let mono = NSFont.monospacedSystemFont(ofSize: baseSize - 1, weight: .regular)
             storage.addAttribute(.font, value: mono, range: range)
+            // Code-block background uses TallyTheme.codeSurface in
+            // system mode (which is what most users will be on); the
+            // sepia/dark-contrast themes don't currently override it,
+            // and the default reads acceptably against both.
             storage.addAttribute(.backgroundColor,
                                  value: NSColor(TallyTheme.codeSurface),
                                  range: range)
