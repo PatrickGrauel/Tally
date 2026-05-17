@@ -102,6 +102,15 @@ final class NotesDatabase {
                 END
             """)
         }
+
+        // v2: pinned notes. Default 0 so all existing notes start
+        // un-pinned; the user opts in per-note via the list context
+        // menu.
+        migrator.registerMigration("v2-isPinned") { db in
+            try db.alter(table: "notes") { t in
+                t.add(column: "isPinned", .integer).notNull().defaults(to: 0)
+            }
+        }
         return migrator
     }
 
@@ -213,7 +222,7 @@ extension Note: FetchableRecord, PersistableRecord {
     /// Custom column mapping — Date round-trips as
     /// `Date.timeIntervalSince1970` (a Double), Bool as 0/1 Int.
     enum Columns: String, ColumnExpression {
-        case id, body, createdAt, modifiedAt, isArchived, isTrashed
+        case id, body, createdAt, modifiedAt, isArchived, isTrashed, isPinned
     }
 
     init(row: Row) {
@@ -226,6 +235,7 @@ extension Note: FetchableRecord, PersistableRecord {
         self.modifiedAt = Date(timeIntervalSince1970: modified)
         self.isArchived = (row[Columns.isArchived] as Int? ?? 0) != 0
         self.isTrashed = (row[Columns.isTrashed] as Int? ?? 0) != 0
+        self.isPinned = (row[Columns.isPinned] as Int? ?? 0) != 0
     }
 
     func encode(to container: inout PersistenceContainer) {
@@ -235,5 +245,6 @@ extension Note: FetchableRecord, PersistableRecord {
         container[Columns.modifiedAt] = modifiedAt.timeIntervalSince1970
         container[Columns.isArchived] = isArchived ? 1 : 0
         container[Columns.isTrashed]  = isTrashed ? 1 : 0
+        container[Columns.isPinned]   = isPinned ? 1 : 0
     }
 }

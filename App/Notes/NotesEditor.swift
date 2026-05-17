@@ -59,6 +59,8 @@ struct NotesEditor: View {
                 }
                 Button("Export all notes…") { exportAllNotes() }
                 Button("Import notes from folder…") { importNotes() }
+                Divider()
+                backupMenuSection
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -92,6 +94,33 @@ struct NotesEditor: View {
             let alert = NSAlert(error: error)
             alert.runModal()
         }
+    }
+
+    /// Backup folder menu group. Either "Set backup folder…" when no
+    /// folder is configured, or "Backup: <name>" + "Disable backup"
+    /// when one is. The last-sync timestamp is shown inline so the
+    /// user can tell at a glance whether sync is current.
+    @ViewBuilder
+    private var backupMenuSection: some View {
+        let backup = NotesBackupService.shared
+        if let folder = backup.folderURL {
+            Section("Backup") {
+                Text(folder.lastPathComponent).font(.caption)
+                if let last = backup.lastSyncAt {
+                    Text("Last synced \(relative(last))").font(.caption)
+                }
+                Button("Sync now") { backup.scanForRemoteChanges() }
+                Button("Disable backup", role: .destructive) { backup.disable() }
+            }
+        } else {
+            Button("Set up auto-backup folder…") { backup.chooseFolder() }
+        }
+    }
+
+    private func relative(_ date: Date) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f.localizedString(for: date, relativeTo: Date())
     }
 
     private func importNotes() {

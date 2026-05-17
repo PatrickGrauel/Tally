@@ -94,6 +94,9 @@ struct NotesPane: View {
         case .trashed:   base = store.trashedNotes
         case .archived:  base = store.archivedNotes
         case .all:       base = store.activeNotes.filter { !$0.isArchived }
+        case .today:
+            let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+            base = store.activeNotes.filter { !$0.isArchived && $0.modifiedAt >= cutoff }
         case .untagged:  base = store.activeNotes.filter { !$0.isArchived && $0.tags.isEmpty }
         case .tag(let p):
             base = store.activeNotes.filter { note in

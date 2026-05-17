@@ -19,19 +19,39 @@ struct Note: Codable, Identifiable, Equatable {
     var modifiedAt: Date
     var isArchived: Bool
     var isTrashed: Bool
+    var isPinned: Bool
 
     init(id: UUID = UUID(),
          body: String = "",
          createdAt: Date = Date(),
          modifiedAt: Date = Date(),
          isArchived: Bool = false,
-         isTrashed: Bool = false) {
+         isTrashed: Bool = false,
+         isPinned: Bool = false) {
         self.id = id
         self.body = body
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
         self.isArchived = isArchived
         self.isTrashed = isTrashed
+        self.isPinned = isPinned
+    }
+
+    /// Manual Codable so a note encoded before `isPinned` existed
+    /// (legacy UserDefaults snapshots, older .md exports) still
+    /// decodes cleanly. New field defaults to false.
+    enum CodingKeys: String, CodingKey {
+        case id, body, createdAt, modifiedAt, isArchived, isTrashed, isPinned
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id         = try c.decode(UUID.self,   forKey: .id)
+        self.body       = try c.decode(String.self, forKey: .body)
+        self.createdAt  = try c.decode(Date.self,   forKey: .createdAt)
+        self.modifiedAt = try c.decode(Date.self,   forKey: .modifiedAt)
+        self.isArchived = try c.decode(Bool.self,   forKey: .isArchived)
+        self.isTrashed  = try c.decode(Bool.self,   forKey: .isTrashed)
+        self.isPinned   = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 
     /// First non-empty line of the body, stripped of leading markdown

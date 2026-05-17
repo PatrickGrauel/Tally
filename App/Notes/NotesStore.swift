@@ -30,6 +30,9 @@ final class NotesStore: ObservableObject {
         // Idempotent — skips work once the migration flag is set.
         database.importLegacyUserDefaultsIfNeeded()
         reload()
+        // Wire the backup service so its launch-scan can import any
+        // notes edited on another Mac while this one was offline.
+        NotesBackupService.shared.attach(store: self)
     }
 
     // MARK: - Writes
@@ -52,6 +55,7 @@ final class NotesStore: ObservableObject {
             } else {
                 saved.append(toSave)
             }
+            NotesBackupService.shared.backupChanged(note: toSave)
         } catch {
             // Persist failure is non-fatal — keep the cache change so
             // the user's typing isn't lost mid-session.
@@ -63,6 +67,7 @@ final class NotesStore: ObservableObject {
         do {
             try database.delete(id: id)
             saved.removeAll { $0.id == id }
+            NotesBackupService.shared.backupRemoved(noteID: id)
         } catch {
             print("NotesStore.remove failed: \(error)")
         }
@@ -97,12 +102,16 @@ final class NotesStore: ObservableObject {
 
     // MARK: - Convenience accessors
 
-    /// Active notes (not trashed), sorted by most recently modified.
-    /// Same API the previous PersistentStore extension provided.
+    /// Active notes (not trashed). Sorted pinned-first, then by most
+    /// recently modified. Matches Bear's convention: pinned items
+    /// float to the top of every filter view.
     var activeNotes: [Note] {
         saved
             .filter { !$0.isTrashed }
-            .sorted { $0.modifiedAt > $1.modifiedAt }
+            .sorted { a, b in
+                if a.isPinned != b.isPinned { return a.isPinned && !b.isPinned }
+                return a.modifiedAt > b.modifiedAt
+            }
     }
 
     var trashedNotes: [Note] {

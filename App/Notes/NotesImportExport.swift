@@ -58,7 +58,7 @@ enum NotesExporter {
     /// File-safe name derived from the note's first-line title. Falls
     /// back to a UUID-based name when the title would be empty or
     /// collides with another note's title.
-    private static func filename(for note: Note) -> String {
+    static func filename(for note: Note) -> String {
         let raw = note.title
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
@@ -75,7 +75,7 @@ enum NotesExporter {
     }
 
     /// Serialise a note as YAML-frontmatter + markdown body.
-    private static func serialize(note: Note) -> String {
+    static func serialize(note: Note) -> String {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         var lines: [String] = [
@@ -86,6 +86,7 @@ enum NotesExporter {
         ]
         if note.isArchived { lines.append("archived: true") }
         if note.isTrashed  { lines.append("trashed: true") }
+        if note.isPinned   { lines.append("pinned: true") }
         let tags = note.tags
         if !tags.isEmpty {
             lines.append("tags: [\(tags.map { "\"\($0)\"" }.joined(separator: ", "))]")

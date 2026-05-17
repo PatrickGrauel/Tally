@@ -4,6 +4,7 @@ import SwiftUI
 /// a different note list in the middle column.
 enum NotesFilter: Hashable {
     case all
+    case today                    // modified in the last 24 hours
     case tag(String)              // hierarchical tag, e.g. "work/2026"
     case archived
     case trashed
@@ -12,6 +13,7 @@ enum NotesFilter: Hashable {
     var displayName: String {
         switch self {
         case .all:           return "All Notes"
+        case .today:         return "Today"
         case .archived:      return "Archive"
         case .trashed:       return "Trash"
         case .untagged:      return "Untagged"
@@ -22,6 +24,7 @@ enum NotesFilter: Hashable {
     var iconName: String {
         switch self {
         case .all:       return "note.text"
+        case .today:     return "calendar"
         case .archived:  return "archivebox"
         case .trashed:   return "trash"
         case .untagged:  return "questionmark.circle"
@@ -46,6 +49,7 @@ struct NotesSidebar: View {
             List(selection: bindingForList) {
                 Section {
                     row(.all, count: store.activeNotes.filter { !$0.isArchived }.count)
+                    row(.today, count: todayCount)
                     if hasUntagged {
                         row(.untagged, count: untaggedCount)
                     }
@@ -132,6 +136,14 @@ struct NotesSidebar: View {
     private var hasUntagged: Bool { untaggedCount > 0 }
     private var untaggedCount: Int {
         store.activeNotes.filter { !$0.isArchived && $0.tags.isEmpty }.count
+    }
+    /// Notes modified within the last 24 hours. Cheap O(n) scan —
+    /// notes counts at this layer are tiny.
+    private var todayCount: Int {
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        return store.activeNotes.filter {
+            !$0.isArchived && $0.modifiedAt >= cutoff
+        }.count
     }
 
     /// Build a forest from all hierarchical tag paths present across

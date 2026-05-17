@@ -9,6 +9,10 @@ struct NotesList: View {
     let filter: NotesFilter
     let search: String
     @Binding var selectedID: UUID?
+    /// Multi-select set. Shift-/Cmd-click adds to it; bulk actions
+    /// (archive, trash, pin) operate on every id here. Empty when the
+    /// user is in single-select mode (the default).
+    @State private var multiSelection: Set<UUID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,7 +21,11 @@ struct NotesList: View {
             if filteredNotes.isEmpty {
                 emptyState
             } else {
-                List(selection: $selectedID) {
+                // Bind to the multi-select set so Shift/Cmd-click
+                // selects ranges; also keep `selectedID` in sync with
+                // the single-select case (when the set has exactly
+                // one item) so the editor reacts.
+                List(selection: $multiSelection) {
                     ForEach(filteredNotes) { note in
                         NotesListRow(note: note)
                             .tag(note.id)
@@ -26,6 +34,27 @@ struct NotesList: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .onChange(of: multiSelection) { _, new in
+                    // Drive the editor selection from whatever the
+                    // user most recently clicked. Multi-select stays
+                    // available for bulk context-menu actions.
+                    if new.count == 1, let only = new.first {
+                        selectedID = only
+                    } else if new.isEmpty {
+                        selectedID = nil
+                    }
+                }
+                .onChange(of: selectedID) { _, new in
+                    // External selection change (chrome new-note,
+                    // wiki-link follow) → reflect into the set so the
+                    // list row visually highlights.
+                    if let id = new {
+                        multiSelection = [id]
+                    }
+                }
+                .onAppear {
+                    if let id = selectedID { multiSelection = [id] }
+                }
             }
         }
         .background(TallyTheme.background)
@@ -67,6 +96,7 @@ struct NotesList: View {
         if !search.isEmpty { return "No notes match \"\(search)\"." }
         switch filter {
         case .all:       return "No notes yet — press ⌘N to create one."
+        case .today:     return "No notes edited in the last 24 hours."
         case .archived:  return "Archive is empty."
         case .trashed:   return "Trash is empty."
         case .untagged:  return "No untagged notes."
@@ -78,19 +108,41 @@ struct NotesList: View {
 
     @ViewBuilder
     private func rowContextMenu(for note: Note) -> some View {
+        // Operate on the multi-selection set when the user
+        // right-clicked a row that's part of a current bulk selection.
+        // Otherwise act on just the clicked note.
+        let targets: [Note] = {
+            if multiSelection.count > 1, multiSelection.contains(note.id) {
+                return filteredNotes.filter { multiSelection.contains($0.id) }
+            }
+            return [note]
+        }()
+        let label = targets.count > 1 ? " (\(targets.count))" : ""
+
         if note.isTrashed {
-            Button("Restore") { restore(note) }
-            Button("Delete permanently", role: .destructive) {
-                store.remove(note.id)
+            Button("Restore\(label)") { targets.forEach(restore) }
+            Button("Delete permanently\(label)", role: .destructive) {
+                targets.forEach { store.remove($0.id) }
             }
         } else {
-            Button(note.isArchived ? "Unarchive" : "Archive") {
-                toggleArchive(note)
+            let allPinned = targets.allSatisfy { $0.isPinned }
+            Button(allPinned ? "Unpin\(label)" : "Pin to top\(label)") {
+                targets.forEach { togglePin($0, force: !allPinned) }
             }
-            Button("Move to Trash", role: .destructive) {
-                trash(note)
+            Button(note.isArchived ? "Unarchive\(label)" : "Archive\(label)") {
+                targets.forEach(toggleArchive)
+            }
+            Button("Move to Trash\(label)", role: .destructive) {
+                targets.forEach(trash)
             }
         }
+    }
+
+    private func togglePin(_ note: Note, force: Bool) {
+        var copy = note
+        copy.isPinned = force
+        copy.modifiedAt = Date()
+        store.add(copy)
     }
 
     private func toggleArchive(_ note: Note) {
@@ -127,6 +179,9 @@ struct NotesList: View {
             base = store.archivedNotes
         case .all:
             base = store.activeNotes.filter { !$0.isArchived }
+        case .today:
+            let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+            base = store.activeNotes.filter { !$0.isArchived && $0.modifiedAt >= cutoff }
         case .untagged:
             base = store.activeNotes.filter { !$0.isArchived && $0.tags.isEmpty }
         case .tag(let path):
@@ -154,7 +209,13 @@ private struct NotesListRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    if note.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(TallyTheme.accent)
+                            .rotationEffect(.degrees(45))
+                    }
                     Text(note.title)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(TallyTheme.text)
