@@ -254,9 +254,28 @@ struct TagDisclosureGroup: View {
     let node: TagNode
     @Binding var filter: NotesFilter
     @ObservedObject var store: NotesStore
-    @State private var expanded: Bool = true
     @State private var emojiPickerShown: Bool = false
     @State private var emojiDraft: String = ""
+
+    /// Persistent expansion state per tag path. The previous
+    /// always-expanded behaviour meant every launch forced the user
+    /// to re-collapse trees they didn't care about; this keys the
+    /// state in @AppStorage with the tag path so each subtree
+    /// remembers itself across launches.
+    @AppStorage private var expanded: Bool
+    init(node: TagNode,
+         filter: Binding<NotesFilter>,
+         store: NotesStore) {
+        self.node = node
+        self._filter = filter
+        self.store = store
+        // Default expanded for top-level nodes (single path
+        // component) so users see something on first launch; nested
+        // levels start collapsed.
+        let isTopLevel = !node.path.contains("/")
+        self._expanded = AppStorage(wrappedValue: isTopLevel,
+                                    "tally.notes.tagExpanded.\(node.path)")
+    }
 
     var body: some View {
         if node.children.isEmpty {

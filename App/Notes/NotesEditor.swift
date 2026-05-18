@@ -25,8 +25,15 @@ struct NotesEditor: View {
             if note != nil {
                 Divider().background(TallyTheme.divider)
                 FormattingBar(controller: controller)
+                Divider().background(TallyTheme.divider)
+                statusBar
             }
         }
+        // Hidden buttons binding keyboard shortcuts to lifecycle
+        // actions. SwiftUI fires the action when the shortcut hits
+        // anywhere in the focused window; clamp(...) makes them no-ops
+        // when no note is selected.
+        .background(shortcutButtons)
         .background(appearance.theme.background)
         .onAppear {
             loadDraft()
@@ -76,6 +83,121 @@ struct NotesEditor: View {
     }
 
     // MARK: - Export / Import
+
+    /// Hidden zero-size buttons that exist only to register their
+    /// keyboard shortcuts with SwiftUI's command system. Pin / Archive
+    /// / Trash / Export all share the editor's note context, so they
+    /// only fire when a note is selected.
+    private var shortcutButtons: some View {
+        ZStack {
+            Button("Pin") {
+                guard let n = note else { return }
+                togglePin(n)
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            Button("Archive") {
+                guard let n = note else { return }
+                toggleArchive(n)
+            }
+            .keyboardShortcut("a", modifiers: [.command, .control])
+            Button("Trash") {
+                guard let n = note else { return }
+                trash(n)
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            Button("Export this note") {
+                guard let n = note else { return }
+                exportSingleNote(n)
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+    }
+
+    private func togglePin(_ note: Note) {
+        flushPendingSave()
+        var copy = note
+        copy.isPinned.toggle()
+        copy.modifiedAt = Date()
+        store.add(copy)
+    }
+
+    /// Single-note .md export. Same format as the bulk exporter so a
+    /// folder built one note at a time is round-trip compatible with
+    /// the bulk importer.
+    private func exportSingleNote(_ note: Note) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .text]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = NotesExporter.filename(for: note)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let payload = NotesExporter.serialize(note: note)
+        do {
+            try payload.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    /// Bottom status strip: word + character counts on the left,
+    /// last-saved relative timestamp on the right. Updates live as
+    /// the user types via the debounced draft binding.
+    private var statusBar: some View {
+        HStack(spacing: 12) {
+            Text(countSummary)
+                .font(.system(size: 10))
+                .foregroundStyle(TallyTheme.muted)
+            Spacer()
+            if let saved = note {
+                Text("Edited \(relative(saved.modifiedAt))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(TallyTheme.muted)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(TallyTheme.surface)
+    }
+
+    private var countSummary: String {
+        // Source-text counts — strip markdown so the numbers reflect
+        // what the reader actually sees, not raw markup bytes.
+        let stripped = Self.strippedForCount(draftBody)
+        let chars = stripped.count
+        let words = stripped
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .filter { !$0.isEmpty }
+            .count
+        let readingMinutes = max(1, Int(ceil(Double(words) / 220.0)))
+        return "\(words) words · \(chars) chars · \(readingMinutes) min read"
+    }
+
+    /// Very rough markdown strip for counting — drop the obvious
+    /// noise tokens (`#`, `*`, `_`, backticks, bracket markers,
+    /// image references) so the word count tracks visible prose.
+    private static func strippedForCount(_ s: String) -> String {
+        var out = s
+        // Inline image markdown.
+        if let r = try? NSRegularExpression(pattern: #"!\[[^\]]*\]\([^)]+\)"#) {
+            let ns = out as NSString
+            out = r.stringByReplacingMatches(in: out,
+                                             range: NSRange(location: 0, length: ns.length),
+                                             withTemplate: "")
+        }
+        return out
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "__", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .replacingOccurrences(of: "#", with: "")
+            .replacingOccurrences(of: ">", with: "")
+            .replacingOccurrences(of: "[ ]", with: "")
+            .replacingOccurrences(of: "[x]", with: "")
+            .replacingOccurrences(of: "[X]", with: "")
+            .replacingOccurrences(of: "- ", with: "")
+            .replacingOccurrences(of: "* ", with: "")
+            .replacingOccurrences(of: "+ ", with: "")
+    }
 
     private func exportAllNotes() {
         let panel = NSOpenPanel()
