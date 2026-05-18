@@ -904,13 +904,12 @@ public final class NumiEngine {
         var tafAge: Int? = nil
 
         for icao in icaos {
-            let metarLine     = handleMetarLine("METAR \(icao)")
-            let tafLine       = handleMetarLine("TAF \(icao)")
-            let rwyText       = Self.briefingRunwaySummary(forICAO: icao)
-            let altText       = Self.briefingAltitudeSummary(forICAO: icao)
-            let hazardLine    = Self.briefingHazardSummary(forICAO: icao)
-            let metarLocal    = Self.briefingMetarLocalTimeLine(forICAO: icao)
-            let tafLocal      = Self.briefingTafLocalTimeLine(forICAO: icao)
+            let metarLine  = handleMetarLine("METAR \(icao)")
+            let tafLine    = handleMetarLine("TAF \(icao)")
+            let rwyText    = Self.briefingRunwaySummary(forICAO: icao)
+            let altText    = Self.briefingAltitudeSummary(forICAO: icao)
+            let hazardLine = Self.briefingHazardSummary(forICAO: icao)
+            let tafLocal   = Self.briefingTafLocalTimeLine(forICAO: icao)
 
             var block = ""
             // Hazard headline at the very top so the scary bits hit
@@ -923,10 +922,10 @@ public final class NumiEngine {
                 block += m.value
                 if let t = m.annotation?.tone { tones.append(t) }
             }
-            if let local = metarLocal, !local.isEmpty {
-                if !block.isEmpty { block += "\n" }
-                block += local
-            }
+            // (METAR observed-time local-translation line removed
+            //  per pilot feedback — the bottom freshness annotation
+            //  already conveys age, so the inline duplicate was
+            //  noise rather than signal.)
             if let t = tafLine {
                 if !block.isEmpty { block += "\n\n" }
                 block += t.value
@@ -1066,32 +1065,6 @@ public final class NumiEngine {
         }
         guard !hazards.isEmpty else { return nil }
         return "⚠ " + hazards.joined(separator: " · ")
-    }
-
-    /// METAR observation timestamp formatted as `observed ZZ:ZZZ
-    /// (HH:MM TZ · Nm ago)`. Reads the observation time out of the
-    /// raw METAR (the `121150Z` group) and pairs it with the
-    /// device's local time zone for at-a-glance reading. Falls back
-    /// to nil when no METAR is cached or the time group can't be
-    /// parsed.
-    private static func briefingMetarLocalTimeLine(forICAO icao: String) -> String? {
-        let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
-        guard let cached = MainActor.assumeIsolated({
-            MetarCacheBridge.shared.cached(kind: .metar, icao: canonical)
-        }) else { return nil }
-        guard let observed = Self.observationTime(in: cached.raw) else { return nil }
-        let zulu = DateFormatter()
-        zulu.timeZone = TimeZone(identifier: "UTC")
-        zulu.locale = Locale(identifier: "en_US_POSIX")
-        zulu.dateFormat = "HH:mm'Z'"
-        let local = DateFormatter()
-        local.timeZone = TimeZone.current
-        local.locale = Locale(identifier: "en_US_POSIX")
-        local.dateFormat = "HH:mm zzz"
-        // formatAge already appends "ago" / returns "just now" — don't
-        // double-suffix.
-        let age = formatAge(Int(Date().timeIntervalSince(observed)))
-        return "  observed \(zulu.string(from: observed)) (\(local.string(from: observed)) · \(age))"
     }
 
     /// TAF issue timestamp formatted as `issued ZZ:ZZZ (HH:MM TZ)`.
