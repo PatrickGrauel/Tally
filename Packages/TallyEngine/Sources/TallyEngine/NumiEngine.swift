@@ -1088,8 +1088,9 @@ public final class NumiEngine {
         local.timeZone = TimeZone.current
         local.locale = Locale(identifier: "en_US_POSIX")
         local.dateFormat = "HH:mm zzz"
-        let ageSeconds = Int(Date().timeIntervalSince(observed))
-        let age = ageSeconds > 0 ? "\(formatAge(ageSeconds)) ago" : "just now"
+        // formatAge already appends "ago" / returns "just now" — don't
+        // double-suffix.
+        let age = formatAge(Int(Date().timeIntervalSince(observed)))
         return "  observed \(zulu.string(from: observed)) (\(local.string(from: observed)) · \(age))"
     }
 

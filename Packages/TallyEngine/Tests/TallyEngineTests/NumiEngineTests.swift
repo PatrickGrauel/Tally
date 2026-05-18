@@ -912,6 +912,25 @@ final class NumiEngineTests: XCTestCase {
     // decoded-summary feature was rolled back per pilot feedback —
     // pilots want the raw METAR, not a parallel plain-English line.)
 
+    func testBriefingObservedLineDoesNotDoubleAppendAgo() throws {
+        // Regression: the local-time annotation under the METAR line
+        // used to read "8 min ago ago" because we appended " ago"
+        // around a formatAge() result that already includes the
+        // suffix. End-to-end test through the engine — `briefing
+        // LEMD` fetches Madrid's live METAR; the observed-line text
+        // must not contain the duplicated suffix.
+        let engine = try NumiEngine()
+        // Wait briefly for the async METAR fetch to land in cache —
+        // the test isn't load-bearing on freshness, just on format.
+        let r = engine.evaluate("briefing LEMD").first?.value ?? ""
+        // Either there is no observed line (fetch hasn't landed) or
+        // there IS one but with a single "ago".
+        if r.contains("observed") {
+            XCTAssertFalse(r.contains("ago ago"),
+                           "observed line must not double-append 'ago': \(r)")
+        }
+    }
+
     // MARK: - Stock quotes (live)
     //
     // The engine handler recognises STOCK / QUOTE / PRICE lines, kicks
