@@ -135,6 +135,65 @@ final class BulletAttachment: NSTextAttachment, MarkdownSerialisable {
     }
 }
 
+// MARK: - Numbered-list item
+
+/// Single rendered `N.` marker at the start of a numbered-list line.
+/// The number is the user's source number — we don't auto-renumber
+/// the way some editors do, which keeps round-trip fidelity (`5. foo`
+/// in markdown stays `5. foo`).
+final class NumberedItemAttachment: NSTextAttachment, MarkdownSerialisable {
+    let number: Int
+    let glyphSize: CGFloat
+
+    init(number: Int, glyphSize: CGFloat) {
+        self.number = number
+        self.glyphSize = glyphSize
+        super.init(data: nil, ofType: nil)
+    }
+    required init?(coder: NSCoder) {
+        self.number = 1
+        self.glyphSize = 14
+        super.init(coder: coder)
+    }
+
+    var sourceMarkdown: String { "\(number). " }
+
+    override func attachmentBounds(for textContainer: NSTextContainer?,
+                                   proposedLineFragment lineFrag: CGRect,
+                                   glyphPosition position: CGPoint,
+                                   characterIndex charIndex: Int) -> CGRect {
+        // Width sized to the digit count + period + breathing room.
+        let digits = String(number).count
+        let width = CGFloat(digits) * (glyphSize * 0.55) + 12
+        return CGRect(x: 0, y: -2, width: width, height: glyphSize)
+    }
+
+    override func image(forBounds imageBounds: CGRect,
+                        textContainer: NSTextContainer?,
+                        characterIndex charIndex: Int) -> NSImage? {
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: glyphSize, weight: .semibold),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+        let glyph = NSAttributedString(string: "\(number).", attributes: attrs)
+        let glyphSize = glyph.size()
+        let bounds = self.attachmentBounds(for: textContainer,
+                                           proposedLineFragment: .zero,
+                                           glyphPosition: .zero,
+                                           characterIndex: charIndex)
+        return NSImage(size: bounds.size, flipped: false) { rect in
+            // Right-align so all digits in a list visually align on
+            // the period rather than fighting for the left edge.
+            let drawAt = NSPoint(
+                x: rect.width - glyphSize.width - 4,
+                y: (rect.height - glyphSize.height) / 2 - 1
+            )
+            glyph.draw(at: drawAt)
+            return true
+        }
+    }
+}
+
 // MARK: - Inline image
 
 final class InlineImageAttachment: NSTextAttachment, MarkdownSerialisable {

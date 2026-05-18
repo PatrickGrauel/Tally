@@ -123,7 +123,33 @@ enum NotesRenderer {
                          into: out, base: base, fontSize: fontSize)
             return
         }
+        if let numbered = matchNumberedLine(remaining) {
+            out.append(NSAttributedString(attachment:
+                NumberedItemAttachment(number: numbered.number, glyphSize: fontSize)))
+            renderInline(String(remaining.dropFirst(numbered.consumed)),
+                         into: out, base: base, fontSize: fontSize)
+            return
+        }
         renderInline(remaining, into: out, base: base, fontSize: fontSize)
+    }
+
+    private struct NumberedMatch {
+        let number: Int
+        let consumed: Int
+    }
+    /// Match `N. ` at the start of the post-indent string. The
+    /// rendered numbered-item attachment carries the source number
+    /// so round-trip serialisation preserves it.
+    private static func matchNumberedLine(_ text: String) -> NumberedMatch? {
+        let pattern = #"^(\d+)\.[ \t]+"#
+        let ns = text as NSString
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let m = regex.firstMatch(in: text,
+                                       range: NSRange(location: 0, length: ns.length)),
+              m.numberOfRanges >= 2 else { return nil }
+        let numberStr = ns.substring(with: m.range(at: 1))
+        guard let n = Int(numberStr) else { return nil }
+        return NumberedMatch(number: n, consumed: m.range.length)
     }
 
     /// Render the inline-text portion of a line, walking for image

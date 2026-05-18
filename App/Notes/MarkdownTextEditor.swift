@@ -446,13 +446,21 @@ struct MarkdownTextEditor: NSViewRepresentable {
             let baseSize = CGFloat(parent.appearance.fontSize)
             let mono = NSFont.monospacedSystemFont(ofSize: baseSize - 1, weight: .regular)
             storage.addAttribute(.font, value: mono, range: range)
-            // Code-block background uses TallyTheme.codeSurface in
-            // system mode (which is what most users will be on); the
-            // sepia/dark-contrast themes don't currently override it,
-            // and the default reads acceptably against both.
-            storage.addAttribute(.backgroundColor,
-                                 value: NSColor(TallyTheme.codeSurface),
-                                 range: range)
+            // Background tint reads as "this is code" against either
+            // the system or sepia theme. Slightly more saturated than
+            // the muted codeSurface to clearly differentiate from
+            // inline `code` spans.
+            let bg = NSColor.systemOrange
+                .withAlphaComponent(NSApp.effectiveAppearance.bestMatch(
+                    from: [.aqua, .darkAqua]) == .darkAqua ? 0.10 : 0.06)
+            storage.addAttribute(.backgroundColor, value: bg, range: range)
+            // Indent the code block left + right so it visually
+            // pops from the surrounding prose, frame-like.
+            let style = NSMutableParagraphStyle()
+            style.headIndent = 12
+            style.firstLineHeadIndent = 12
+            style.tailIndent = -12
+            storage.addAttribute(.paragraphStyle, value: style, range: range)
         }
 
         /// Blockquotes — lines starting with `> ` get a paragraph style
