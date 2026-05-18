@@ -912,15 +912,19 @@ final class NumiEngineTests: XCTestCase {
     // decoded-summary feature was rolled back per pilot feedback —
     // pilots want the raw METAR, not a parallel plain-English line.)
 
-    func testBriefingHasNoObservedLine() throws {
-        // The METAR observed/local-time line was rolled back per
-        // pilot feedback — the bottom-row freshness annotation
-        // already conveys age. Regression test ensures the line
-        // doesn't sneak back in via a merge.
+    func testBriefingHasNoInlineLocalTimeLines() throws {
+        // Both the METAR observed-time and TAF issued-time inline
+        // local-translation lines were rolled back per pilot feedback
+        // — the bottom-row freshness annotation already conveys age
+        // and the TAF issue moment, and the inline duplicates added
+        // noise. Regression test ensures neither sneaks back via a
+        // future merge.
         let engine = try NumiEngine()
         let r = engine.evaluate("briefing LEMD").first?.value ?? ""
         XCTAssertFalse(r.contains("observed "),
                        "briefing should no longer emit an 'observed' line: \(r)")
+        XCTAssertFalse(r.contains("issued "),
+                       "briefing should no longer emit an 'issued' line: \(r)")
     }
 
     // MARK: - Stock quotes (live)

@@ -909,7 +909,6 @@ public final class NumiEngine {
             let rwyText    = Self.briefingRunwaySummary(forICAO: icao)
             let altText    = Self.briefingAltitudeSummary(forICAO: icao)
             let hazardLine = Self.briefingHazardSummary(forICAO: icao)
-            let tafLocal   = Self.briefingTafLocalTimeLine(forICAO: icao)
 
             var block = ""
             // Hazard headline at the very top so the scary bits hit
@@ -922,18 +921,13 @@ public final class NumiEngine {
                 block += m.value
                 if let t = m.annotation?.tone { tones.append(t) }
             }
-            // (METAR observed-time local-translation line removed
-            //  per pilot feedback — the bottom freshness annotation
-            //  already conveys age, so the inline duplicate was
-            //  noise rather than signal.)
+            // (No METAR "observed" / TAF "issued" local-time inline
+            //  lines — the bottom freshness annotation already
+            //  conveys age. Keep the briefing tight.)
             if let t = tafLine {
                 if !block.isEmpty { block += "\n\n" }
                 block += t.value
                 if let tn = t.annotation?.tone { tones.append(tn) }
-            }
-            if let local = tafLocal, !local.isEmpty {
-                if !block.isEmpty { block += "\n" }
-                block += local
             }
             if let r = rwyText {
                 if !block.isEmpty { block += "\n\n" }
@@ -1065,27 +1059,6 @@ public final class NumiEngine {
         }
         guard !hazards.isEmpty else { return nil }
         return "⚠ " + hazards.joined(separator: " · ")
-    }
-
-    /// TAF issue timestamp formatted as `issued ZZ:ZZZ (HH:MM TZ)`.
-    /// We don't repeat the validity window (it's already in the raw
-    /// TAF text); the local-time aid is for the issue moment so the
-    /// reader knows how fresh the forecast itself is.
-    private static func briefingTafLocalTimeLine(forICAO icao: String) -> String? {
-        let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
-        guard let cached = MainActor.assumeIsolated({
-            MetarCacheBridge.shared.cached(kind: .taf, icao: canonical)
-        }) else { return nil }
-        guard let issued = Self.observationTime(in: cached.raw) else { return nil }
-        let zulu = DateFormatter()
-        zulu.timeZone = TimeZone(identifier: "UTC")
-        zulu.locale = Locale(identifier: "en_US_POSIX")
-        zulu.dateFormat = "HH:mm'Z'"
-        let local = DateFormatter()
-        local.timeZone = TimeZone.current
-        local.locale = Locale(identifier: "en_US_POSIX")
-        local.dateFormat = "HH:mm zzz"
-        return "  issued \(zulu.string(from: issued)) (\(local.string(from: issued)))"
     }
 
     /// One-line altitude summary for a briefing. Same data as
