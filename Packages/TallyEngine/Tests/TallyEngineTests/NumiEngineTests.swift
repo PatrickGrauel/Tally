@@ -908,18 +908,9 @@ final class NumiEngineTests: XCTestCase {
                      "calm weather should produce no hazard headline")
     }
 
-    func testBriefingDecodedSummaryPlainEnglish() throws {
-        let m = MetarParser.parse("EDMA 121150Z 27015G25KT 10SM FEW020 18/12 A2992")
-        let s = NumiEngine.briefingDecodedSummary(from: m) ?? ""
-        XCTAssertTrue(s.contains("Wind 270°/15kt gust 25kt"),
-                      "expected wind decoded, got: \(s)")
-        XCTAssertTrue(s.contains("Vis 10SM"),
-                      "expected visibility decoded, got: \(s)")
-        XCTAssertTrue(s.contains("Few at 2000ft"),
-                      "expected cloud decoded, got: \(s)")
-        XCTAssertTrue(s.contains("18°C / dew 12°C"),
-                      "expected temperature decoded, got: \(s)")
-    }
+    // (testBriefingDecodedSummaryPlainEnglish was removed when the
+    // decoded-summary feature was rolled back per pilot feedback —
+    // pilots want the raw METAR, not a parallel plain-English line.)
 
     // MARK: - Stock quotes (live)
     //

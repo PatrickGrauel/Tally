@@ -904,14 +904,13 @@ public final class NumiEngine {
         var tafAge: Int? = nil
 
         for icao in icaos {
-            let metarLine  = handleMetarLine("METAR \(icao)")
-            let tafLine    = handleMetarLine("TAF \(icao)")
-            let atisLine   = handleMetarLine("ATIS \(icao)")
-            let rwyText    = Self.briefingRunwaySummary(forICAO: icao)
-            let altText    = Self.briefingAltitudeSummary(forICAO: icao)
-            let hazardLine = Self.briefingHazardSummary(forICAO: icao)
-            let decodedLine = Self.briefingDecodedSummary(forICAO: icao)
-            let sunText    = Self.briefingSunSummary(forICAO: icao)
+            let metarLine     = handleMetarLine("METAR \(icao)")
+            let tafLine       = handleMetarLine("TAF \(icao)")
+            let rwyText       = Self.briefingRunwaySummary(forICAO: icao)
+            let altText       = Self.briefingAltitudeSummary(forICAO: icao)
+            let hazardLine    = Self.briefingHazardSummary(forICAO: icao)
+            let metarLocal    = Self.briefingMetarLocalTimeLine(forICAO: icao)
+            let tafLocal      = Self.briefingTafLocalTimeLine(forICAO: icao)
 
             var block = ""
             // Hazard headline at the very top so the scary bits hit
@@ -924,26 +923,22 @@ public final class NumiEngine {
                 block += m.value
                 if let t = m.annotation?.tone { tones.append(t) }
             }
-            if let d = decodedLine, !d.isEmpty {
+            if let local = metarLocal, !local.isEmpty {
                 if !block.isEmpty { block += "\n" }
-                block += d
+                block += local
             }
             if let t = tafLine {
                 if !block.isEmpty { block += "\n\n" }
                 block += t.value
                 if let tn = t.annotation?.tone { tones.append(tn) }
             }
-            if let a = atisLine {
-                if !block.isEmpty { block += "\n\n" }
-                block += a.value
+            if let local = tafLocal, !local.isEmpty {
+                if !block.isEmpty { block += "\n" }
+                block += local
             }
             if let r = rwyText {
                 if !block.isEmpty { block += "\n\n" }
                 block += r
-            }
-            if let s = sunText, !s.isEmpty {
-                if !block.isEmpty { block += "\n\n" }
-                block += s
             }
             if !block.isEmpty { block += "\n\n" }
             block += altText
@@ -1073,98 +1068,50 @@ public final class NumiEngine {
         return "⚠ " + hazards.joined(separator: " · ")
     }
 
-    /// Cache-reading wrapper. Pure-logic version below.
-    private static func briefingDecodedSummary(forICAO icao: String) -> String? {
+    /// METAR observation timestamp formatted as `observed ZZ:ZZZ
+    /// (HH:MM TZ · Nm ago)`. Reads the observation time out of the
+    /// raw METAR (the `121150Z` group) and pairs it with the
+    /// device's local time zone for at-a-glance reading. Falls back
+    /// to nil when no METAR is cached or the time group can't be
+    /// parsed.
+    private static func briefingMetarLocalTimeLine(forICAO icao: String) -> String? {
         let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
         guard let cached = MainActor.assumeIsolated({
             MetarCacheBridge.shared.cached(kind: .metar, icao: canonical)
         }) else { return nil }
-        return briefingDecodedSummary(from: MetarParser.parse(cached.raw))
+        guard let observed = Self.observationTime(in: cached.raw) else { return nil }
+        let zulu = DateFormatter()
+        zulu.timeZone = TimeZone(identifier: "UTC")
+        zulu.locale = Locale(identifier: "en_US_POSIX")
+        zulu.dateFormat = "HH:mm'Z'"
+        let local = DateFormatter()
+        local.timeZone = TimeZone.current
+        local.locale = Locale(identifier: "en_US_POSIX")
+        local.dateFormat = "HH:mm zzz"
+        let ageSeconds = Int(Date().timeIntervalSince(observed))
+        let age = ageSeconds > 0 ? "\(formatAge(ageSeconds)) ago" : "just now"
+        return "  observed \(zulu.string(from: observed)) (\(local.string(from: observed)) · \(age))"
     }
 
-    /// Plain-English one-line summary. Sits directly under the raw
-    /// METAR in the briefing so a pilot can scan either form
-    /// without re-parsing.
-    static func briefingDecodedSummary(from decoded: DecodedMetar) -> String? {
-        var parts: [String] = []
-
-        // Wind: direction · speed · gust.
-        if let w = decoded.wind {
-            var s = ""
-            if w.isVariable {
-                s = "Wind variable at \(w.speedKt)kt"
-            } else if let dir = w.fromDeg {
-                s = "Wind \(String(format: "%03d", dir))°/\(w.speedKt)kt"
-            } else {
-                s = "Wind \(w.speedKt)kt"
-            }
-            if let g = w.gustKt { s += " gust \(g)kt" }
-            parts.append(s)
-        }
-        // Visibility.
-        if let v = decoded.visibility {
-            if v.isCAVOK {
-                parts.append("CAVOK")
-            } else if let sm = v.statuteMiles {
-                parts.append(String(format: "Vis %.0fSM", sm))
-            } else if let m = v.meters {
-                parts.append("Vis \(m)m")
-            }
-        }
-        // Clouds: list first 2 layers in human form.
-        let layers = decoded.clouds.prefix(2).compactMap { c -> String? in
-            let coverWord: String
-            switch c.cover {
-            case .few:                 coverWord = "Few"
-            case .scattered:           coverWord = "Scattered"
-            case .broken:              coverWord = "Broken"
-            case .overcast:            coverWord = "Overcast"
-            case .sky_clear, .clear:   return "Sky clear"
-            case .no_significant, .no_clouds: return "No significant cloud"
-            case .vertical_visibility:
-                return c.altitudeFt.map { "Vert vis \($0)ft" } ?? nil
-            }
-            guard let ft = c.altitudeFt else { return coverWord }
-            return "\(coverWord) at \(ft)ft" + (c.type.map { " (\($0))" } ?? "")
-        }
-        if !layers.isEmpty {
-            parts.append(layers.joined(separator: ", "))
-        }
-        // Temp / dewpoint.
-        if let t = decoded.temperatureC {
-            var s = String(format: "%.0f°C", t)
-            if let d = decoded.dewpointC {
-                s += String(format: " / dew %.0f°C", d)
-            }
-            parts.append(s)
-        }
-        // Altimeter.
-        if let alt = decoded.altimeter {
-            if let h = alt.hPa {
-                parts.append("QNH \(Int(h)) hPa")
-            } else if let i = alt.inHg {
-                parts.append(String(format: "QNH %.2f inHg", i))
-            }
-        }
-        guard !parts.isEmpty else { return nil }
-        return "  " + parts.joined(separator: " · ")
-    }
-
-    /// One-line sun-times summary for a briefing. Delegates to
-    /// `handleSunLine` then strips the leading "SUN icao" header
-    /// (which would be redundant inside a briefing block).
-    private static func briefingSunSummary(forICAO icao: String) -> String? {
-        guard let raw = handleSunLine("sun \(icao)") else { return nil }
-        // handleSunLine returns "SUN EDMA  rise … set … …" possibly
-        // across multiple lines for multi-airport queries. For the
-        // briefing we want a compact one-line representation under a
-        // clear header.
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return "Sun " + trimmed.replacingOccurrences(
-            of: #"^SUN\s+[A-Z]{3,4}\s+"#,
-            with: "",
-            options: .regularExpression
-        )
+    /// TAF issue timestamp formatted as `issued ZZ:ZZZ (HH:MM TZ)`.
+    /// We don't repeat the validity window (it's already in the raw
+    /// TAF text); the local-time aid is for the issue moment so the
+    /// reader knows how fresh the forecast itself is.
+    private static func briefingTafLocalTimeLine(forICAO icao: String) -> String? {
+        let canonical = AirportCodeMap.canonicalICAO(from: icao) ?? icao
+        guard let cached = MainActor.assumeIsolated({
+            MetarCacheBridge.shared.cached(kind: .taf, icao: canonical)
+        }) else { return nil }
+        guard let issued = Self.observationTime(in: cached.raw) else { return nil }
+        let zulu = DateFormatter()
+        zulu.timeZone = TimeZone(identifier: "UTC")
+        zulu.locale = Locale(identifier: "en_US_POSIX")
+        zulu.dateFormat = "HH:mm'Z'"
+        let local = DateFormatter()
+        local.timeZone = TimeZone.current
+        local.locale = Locale(identifier: "en_US_POSIX")
+        local.dateFormat = "HH:mm zzz"
+        return "  issued \(zulu.string(from: issued)) (\(local.string(from: issued)))"
     }
 
     /// One-line altitude summary for a briefing. Same data as
