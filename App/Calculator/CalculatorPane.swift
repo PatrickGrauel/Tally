@@ -8,6 +8,7 @@ struct CalculatorPane: View {
     let error: String?
     @ObservedObject var documents: DocumentStore
     @Environment(\.openSettings) private var openSettings
+    @EnvironmentObject private var calculatorBridge: CalculatorBridge
 
     @State private var results: [LineResult] = []
     @State private var evaluateTask: Task<Void, Never>? = nil
@@ -43,7 +44,10 @@ struct CalculatorPane: View {
                         ),
                         results: results,
                         renderValue: { Self.renderValue($0) },
-                        renderAnnotation: { Self.renderAnnotation($0) }
+                        renderAnnotation: { Self.renderAnnotation($0) },
+                        onPageReferenceClicked: { slug in
+                            calculatorBridge.jumpToDocument(slug)
+                        }
                     )
                     .overlay(alignment: .bottomLeading) { gearButton }
                 }
@@ -579,6 +583,11 @@ final class AutocompletingTextView: NSTextView {
 
     private var ghostSuggestion: String?
 
+    /// Closure the editor's enclosing container installs so a click
+    /// on an `@reference` token can navigate to another document.
+    /// Receives the lowercased slug; no-op when unset.
+    var onPageReferenceClicked: ((String) -> Void)?
+
     func recomputeSuggestion() {
         let cursor = selectedRange().location
         let suggestion = SuggestionEngine.suggest(in: string, cursor: cursor)
@@ -591,6 +600,35 @@ final class AutocompletingTextView: NSTextView {
     override func draw(_ rect: NSRect) {
         super.draw(rect)
         drawGhost()
+    }
+
+    /// Intercept clicks landing on `@ref` tokens — those navigate
+    /// to the linked document instead of placing the caret. All
+    /// other clicks fall through to NSTextView's default handling.
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let containerOrigin = textContainerOrigin
+        let inContainer = NSPoint(x: point.x - containerOrigin.x,
+                                  y: point.y - containerOrigin.y)
+        if let layoutManager,
+           let textContainer,
+           let storage = textStorage {
+            let glyphIndex = layoutManager.glyphIndex(for: inContainer,
+                                                     in: textContainer)
+            let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+            if charIndex < storage.length {
+                let slug = storage.attribute(
+                    UnifiedCoordinator.pageReferenceAttributeKey,
+                    at: charIndex,
+                    effectiveRange: nil
+                ) as? String
+                if let slug, !slug.isEmpty {
+                    onPageReferenceClicked?(slug)
+                    return
+                }
+            }
+        }
+        super.mouseDown(with: event)
     }
 
     private func drawGhost() {

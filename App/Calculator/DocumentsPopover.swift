@@ -48,6 +48,7 @@ struct DocumentsPopover: View {
                                 store.select(doc.id)
                                 isPresented = false
                             },
+                                        onTogglePin: { store.togglePinned(doc.id) },
                                         onDelete: { store.delete(doc.id) })
                         }
                     }
@@ -68,12 +69,26 @@ private struct DocumentRow: View {
     let doc: TallyDocument
     let isSelected: Bool
     let onSelect: () -> Void
+    let onTogglePin: () -> Void
     let onDelete: () -> Void
 
     @State private var hovering = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
+            // Pin glyph for pinned docs. Reserved 14pt so unpinned
+            // rows align text-flush with pinned ones.
+            ZStack(alignment: .topLeading) {
+                if doc.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(TallyTheme.accent)
+                        .rotationEffect(.degrees(45))
+                        .padding(.top, 4)
+                }
+            }
+            .frame(width: 14)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(doc.title)
                     .font(.system(.body, design: .monospaced))
@@ -109,5 +124,10 @@ private struct DocumentRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onSelect() }
         .onHover { hovering = $0 }
+        .contextMenu {
+            Button(doc.isPinned ? "Unpin" : "Pin to top") { onTogglePin() }
+            Divider()
+            Button("Delete", role: .destructive) { onDelete() }
+        }
     }
 }

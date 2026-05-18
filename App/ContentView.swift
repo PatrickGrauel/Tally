@@ -402,6 +402,12 @@ struct ContentView: View {
                     documents.updateSelectedContent(existing + appended)
                     selection = .calculator
                 }
+                calculatorBridge.jumpToDocument = { [weak documents] slug in
+                    guard let documents else { return }
+                    if documents.selectBySlug(slug) {
+                        selection = .calculator
+                    }
+                }
             }
             // If the user disables the module they're currently viewing,
             // bounce back to Calculator so they don't end up looking at a

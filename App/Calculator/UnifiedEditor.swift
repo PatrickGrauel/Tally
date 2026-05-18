@@ -22,6 +22,10 @@ struct UnifiedEditor: NSViewRepresentable {
     let results: [LineResult]
     let renderValue: (LineResult) -> NSAttributedString
     let renderAnnotation: (LineResult) -> NSAttributedString?
+    /// Forwarded to the underlying NSTextView so `@reference` clicks
+    /// can navigate to another document. Optional — when nil, clicks
+    /// fall through to normal caret placement.
+    var onPageReferenceClicked: ((String) -> Void)?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
@@ -43,6 +47,7 @@ struct UnifiedEditor: NSViewRepresentable {
         //    just without its own enclosing scroll view this time. The
         //    outer NSScrollView is what scrolls.
         let tv = AutocompletingTextView()
+        tv.onPageReferenceClicked = onPageReferenceClicked
         tv.isRichText = false
         tv.isEditable = true
         tv.isSelectable = true
@@ -117,6 +122,9 @@ struct UnifiedEditor: NSViewRepresentable {
         guard let column = scroll.documentView as? ColumnContainer,
               let tv = column.editor
         else { return }
+
+        // Keep the click-jump closure in sync with SwiftUI re-renders.
+        tv.onPageReferenceClicked = onPageReferenceClicked
 
         // Text refresh (e.g. document switch).
         if tv.string != text {
@@ -223,9 +231,53 @@ final class UnifiedCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDeleg
                 colour = defaultColor
             }
             storage.addAttribute(.foregroundColor, value: colour, range: lineRange)
+            // Layer `@reference` styling on top of the base line
+            // colour so jump links pop with an underline + accent
+            // tint regardless of whether the line was a header,
+            // comment, or expression.
+            applyPageReferenceStyling(to: storage,
+                                      lineString: lineString,
+                                      lineRange: lineRange)
             let newLoc = lineRange.location + lineRange.length
             if newLoc == loc { break }
             loc = newLoc
+        }
+    }
+
+    /// Attribute key the AutocompletingTextView's mouseDown handler
+    /// reads to decide whether a click targets an `@ref` jump.
+    /// Value is the slug string (lowercased first word after `@`).
+    static let pageReferenceAttributeKey =
+        NSAttributedString.Key("vektor.calculator.pageRef")
+
+    /// Highlight every `@\w+` token inside `lineString` with an
+    /// accent foreground + underline, and stash the slug on a
+    /// custom attribute so click handling can read it back without
+    /// re-scanning the text.
+    private static let pageRefRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"@[A-Za-z0-9_-]+"#)
+    }()
+    private static func applyPageReferenceStyling(to storage: NSTextStorage,
+                                                  lineString: String,
+                                                  lineRange: NSRange) {
+        guard let regex = pageRefRegex else { return }
+        let ns = lineString as NSString
+        regex.enumerateMatches(in: lineString,
+                               range: NSRange(location: 0, length: ns.length)) { match, _, _ in
+            guard let m = match else { return }
+            // Absolute range = line offset + match's offset within the line.
+            let absRange = NSRange(location: lineRange.location + m.range.location,
+                                   length: m.range.length)
+            let slug = ns.substring(with: m.range).lowercased().dropFirst()
+            storage.addAttribute(.foregroundColor,
+                                 value: NSColor(TallyTheme.accent),
+                                 range: absRange)
+            storage.addAttribute(.underlineStyle,
+                                 value: NSUnderlineStyle.single.rawValue,
+                                 range: absRange)
+            storage.addAttribute(pageReferenceAttributeKey,
+                                 value: String(slug),
+                                 range: absRange)
         }
     }
 }

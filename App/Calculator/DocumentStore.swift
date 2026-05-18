@@ -7,11 +7,31 @@ struct TallyDocument: Identifiable, Codable, Equatable {
     var id: UUID
     var content: String
     var updatedAt: Date
+    /// User-pinned to the top of the documents list. Pins survive
+    /// across sessions via the same UserDefaults blob. Optional in
+    /// the encoded form so notes saved before this field existed
+    /// still decode cleanly.
+    var isPinned: Bool
 
-    init(id: UUID = UUID(), content: String = "", updatedAt: Date = .now) {
+    init(id: UUID = UUID(),
+         content: String = "",
+         updatedAt: Date = .now,
+         isPinned: Bool = false) {
         self.id = id
         self.content = content
         self.updatedAt = updatedAt
+        self.isPinned = isPinned
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, content, updatedAt, isPinned
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id        = try c.decode(UUID.self,   forKey: .id)
+        self.content   = try c.decode(String.self, forKey: .content)
+        self.updatedAt = try c.decode(Date.self,   forKey: .updatedAt)
+        self.isPinned  = try c.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 
     /// First non-empty / non-comment line, trimmed and truncated.
@@ -29,6 +49,17 @@ struct TallyDocument: Identifiable, Codable, Equatable {
         }
         return "Scratch something"
     }
+
+    /// First-word slug used as the target of `@reference` jumps from
+    /// other documents. Lowercased, alphanumeric + `-` + `_` only.
+    /// Two documents that produce the same slug both work as targets
+    /// (most-recently-modified wins).
+    var slug: String {
+        let raw = title
+        let firstWord = raw.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "-" && $0 != "_" })
+            .first ?? Substring("")
+        return firstWord.lowercased()
+    }
 }
 
 @MainActor
@@ -43,69 +74,13 @@ final class DocumentStore: ObservableObject {
         let loaded = Self.load()
         var initial: [TallyDocument]
         if loaded.isEmpty {
-            // Seed the first launch with a welcome doc that doubles as a
-            // hands-on tour. Light humor on the section breaks so it
-            // reads less like documentation and more like a friendly nudge.
-            // After first launch the user owns it — edit, delete, rename.
-            let first = TallyDocument(content: """
-            # Welcome to Vektor
-            // Each line is its own calculation. The answer pops up on the right.
-            // Click anywhere to start typing — or scroll through these first.
-
-            # The classics
-            2 + 2
-            8 * (3.5 + 1)
-            prev / 2          // "prev" = the last result. Saves chaining math.
-
-            # Units — Vektor's bread and butter
-            120 kt in km/h
-            60000 ft in km
-            29.92 inHg in hPa
-            2 hours in seconds
-
-            # Money (live rates, refreshed in the background)
-            100 EUR in USD
-            1 BTC in USD
-            stock AAPL          // needs your FMP key in Settings → Stocks
-            // Yes, even when BTC does the thing it does.
-
-            # Time zones — for calling people in inconvenient hemispheres
-            Berlin time
-            1430 Zulu in HKT
-            now in Tokyo + 2h
-
-            # Dates — for procrastinators and birthdays alike
-            days between today and 2026-12-25
-            age 1990-03-15
-
-            # Variables — name a number once, reuse it forever
-            a = 100
-            b = 2 * a
-            c = a + b
-            // Names are case-insensitive. Total_price and total_price are the same var.
-            // Yes, this is the algebra they made you do in school.
-            // Turns out it was for something.
-
-            # Now the practical version — for when you really want to know
-            # what something costs you:
-            rent = 1450 EUR
-            rent * 12
-            // Spoiler: a lot.
-
-            # Aviation — for the pilots in the room
-            METAR EDDM         // Munich, live — auto-appends best runway by wind
-            TAF KSFO           // San Francisco's forecast
-            ATIS KJFK          // FAA D-ATIS where published
-            RWY EDDM           // every runway with length, surface, heading
-            sun EDDM           // sunrise, sunset, civil twilight for today
-            altitude EDDM      // field elevation · pressure alt · density alt
-            briefing EDMA      // …or all of the above for one airport, stacked
-            // Type any ICAO code. Multiple at once works too: METAR EDDM EDMO.
-
-            // ⌘N for a new scratchpad. ⌘L to see all of them.
-            // This doc is yours — edit it, delete it, ignore it. We won't mind.
-            """)
-            initial = [first]
+            // Seed first launch with a welcoming hub doc + eight
+            // topic-focused docs it links to via `@references`. The
+            // welcome doc is intentionally short — it's an index, not
+            // a tutorial. Each topic page is short, copy-pasteable,
+            // and runs in real time so the user sees something
+            // useful within seconds of clicking through.
+            initial = Self.welcomePackage()
         } else {
             initial = loaded
         }
@@ -180,8 +155,60 @@ final class DocumentStore: ObservableObject {
 
     func filtered(searching query: String) -> [TallyDocument] {
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return documents }
-        return documents.filter { $0.content.localizedCaseInsensitiveContains(q) }
+        let base = sortedForListing(documents)
+        guard !q.isEmpty else { return base }
+        return base.filter { $0.content.localizedCaseInsensitiveContains(q) }
+    }
+
+    /// Pins-first sort. Inside each group the most-recently-updated
+    /// document floats to the top — matches Numi's "what did I
+    /// touch last?" mental model.
+    private func sortedForListing(_ list: [TallyDocument]) -> [TallyDocument] {
+        list.sorted { a, b in
+            if a.isPinned != b.isPinned { return a.isPinned && !b.isPinned }
+            return a.updatedAt > b.updatedAt
+        }
+    }
+
+    // MARK: - Pinning
+
+    func togglePinned(_ id: UUID) {
+        guard let idx = documents.firstIndex(where: { $0.id == id }) else { return }
+        documents[idx].isPinned.toggle()
+        documents[idx].updatedAt = .now
+        persist()
+    }
+
+    // MARK: - @ slug navigation
+
+    /// Resolve a slug to a document. Used by `@reference` clicks in
+    /// the calculator editor. Most-recently-modified wins when more
+    /// than one document shares the same slug.
+    func findBySlug(_ slug: String) -> TallyDocument? {
+        let q = slug.lowercased()
+        return documents
+            .filter { $0.slug == q }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .first
+    }
+
+    /// Navigate to the document matching `slug`, no-op if no match.
+    /// Returns true if navigation happened (useful for the click
+    /// handler — it falls through to default caret placement when
+    /// no jump occurred).
+    @discardableResult
+    func selectBySlug(_ slug: String) -> Bool {
+        guard let doc = findBySlug(slug) else { return false }
+        select(doc.id)
+        return true
+    }
+
+    /// All current slug → title pairs. Used by the (planned) `@`
+    /// autocomplete popover.
+    func allSlugs() -> [(slug: String, title: String, id: UUID)] {
+        documents
+            .filter { !$0.slug.isEmpty }
+            .map { ($0.slug, $0.title, $0.id) }
     }
 
     // MARK: - Persistence
@@ -197,5 +224,223 @@ final class DocumentStore: ObservableObject {
               let decoded = try? JSONDecoder().decode([TallyDocument].self, from: data)
         else { return [] }
         return decoded
+    }
+
+    // MARK: - First-launch seed
+
+    /// Nine docs the new user lands with:
+    ///   • Welcome to Vektor   — short hub, links to the others via @refs
+    ///   • Math                — arithmetic + variables + prev
+    ///   • Units               — kt → km/h, °F → °C, the bread and butter
+    ///   • Money               — FX, crypto, live stock quotes
+    ///   • Time                — time-zone math + Zulu / local conversions
+    ///   • Dates               — days between, age, weekday-of-date
+    ///   • Aviation            — METAR / TAF / RWY / sun / altitude
+    ///   • Stocks              — DCA scoring + FMP setup pointer
+    ///   • Tips                — keyboard shortcuts and pane tour
+    ///
+    /// Welcome is pinned so it stays at the top of the list. The
+    /// linked docs aren't pinned — once the user has explored, they
+    /// fall to where their `updatedAt` puts them.
+    private static func welcomePackage() -> [TallyDocument] {
+        // Insert order matters for the sidebar list — newest first
+        // is the default sort, so build in reverse-chronological
+        // order with the welcome doc *last* (most recent → top).
+        let now = Date()
+        func at(_ offsetSeconds: TimeInterval) -> Date {
+            now.addingTimeInterval(offsetSeconds)
+        }
+
+        let math = TallyDocument(content: """
+        # Math
+        // The boring stuff that secretly runs the world.
+
+        2 + 2
+        8 * (3.5 + 1)
+        sqrt(2)
+        sin(45°) ^ 2 + cos(45°) ^ 2     // hi there, Pythagoras
+
+        // prev = the last result. Saves you copy-paste hell.
+        100 / 7
+        prev * 12
+
+        // Variables. Name a number, reuse it forever.
+        rent = 1450 EUR
+        rent * 12                       // yearly burn
+        rent * 12 * 30 / 1000           // and over a 30-year career
+
+        // Done? Try @units next, or @welcome for the hub.
+        """, updatedAt: at(-80))
+
+        let units = TallyDocument(content: """
+        # Units
+        // Vektor's bread and butter. Type a number + a unit, then
+        // "to" or "in" + the unit you want.
+
+        120 kt in km/h
+        60000 ft in m
+        29.92 inHg in hPa
+        2 hours in seconds
+        180 lbs in kg
+        100°F in °C
+
+        // Mixed math works too:
+        (5 km + 800 m) in miles
+        5400 W * 3 hours in kWh
+
+        // Got it? Try @money, @time, or @aviation next.
+        """, updatedAt: at(-70))
+
+        let money = TallyDocument(content: """
+        # Money — live rates, refreshed quietly in the background
+        // FX is auto-fetched. Crypto too. Stocks need your FMP key
+        // (Settings → Stocks).
+
+        100 EUR in USD
+        2500 USD in JPY
+        50 GBP in CHF
+
+        // Crypto — same syntax. The market goes up and down.
+        // Vektor stays cool about it.
+        1 BTC in USD
+        0.5 ETH in EUR
+
+        // Live single-stock price:
+        stock AAPL
+
+        // The full Buffett DCA scorecard for any covered ticker
+        // lives in the Stocks pane. See @stocks.
+
+        // Now you know. Back to @welcome.
+        """, updatedAt: at(-60))
+
+        let time = TallyDocument(content: """
+        # Time — for talking to people in inconvenient hemispheres
+        // Try any city name. Or an ICAO airport code. Or "Zulu".
+
+        Berlin time
+        Tokyo time
+        SFO time                        // IATA works too
+        1430 Zulu in HKT
+        now in Tokyo + 2h               // "what time will it be there in 2h?"
+
+        // Going the other way:
+        9am tomorrow Berlin in PT       // when is your 9am their time?
+
+        // Pilots, see also @aviation. Travelers, see @dates.
+        """, updatedAt: at(-50))
+
+        let dates = TallyDocument(content: """
+        # Dates — for procrastinators, parents, project managers
+        // Quick date arithmetic without opening Calendar.
+
+        today
+        days between today and 2026-12-25
+        age 1990-03-15
+        weekday 2026-07-04
+
+        // Stack it with units:
+        days between today and 2026-12-25 in weeks
+
+        // Time-zone work? @time. Mortgage timeline? @money.
+        """, updatedAt: at(-40))
+
+        let aviation = TallyDocument(content: """
+        # Aviation — for the pilots in the room
+        // Vektor speaks ICAO and IATA. Multiple stations at once works:
+        // METAR EDDM EDMO LOWS.
+
+        METAR EDDM                      // Munich, live — and the best runway by wind
+        TAF KSFO                        // 24h forecast
+        ATIS KJFK                       // where the FAA publishes D-ATIS
+        RWY EDDM                        // every runway: length, surface, heading
+        sun EDDM                        // sunrise, sunset, civil twilight today
+        altitude EDDM                   // field · pressure · density altitude
+        briefing EDMA                   // all the above for one ICAO, stacked
+
+        // Wind triangles + W&B + E6B live in the Aviation pane.
+        // Back to @welcome.
+        """, updatedAt: at(-30))
+
+        let stocks = TallyDocument(content: """
+        # Stocks
+        // Live single-quote works right here in the calculator:
+        stock AAPL
+        stock MSFT
+        stock KO
+
+        // For the full scorecard — Buffett's Durable Competitive
+        // Advantage framework, six axes, radar chart, sector P/E
+        // fair-value verdict, 1M chart, the lot — switch to the
+        // Stocks pane (it's a separate module; enable it from
+        // Manage Panes).
+
+        // You'll need a free Financial Modeling Prep key (Settings →
+        // Stocks). The free tier covers ~50 analyses/day of major
+        // US-listed tickers.
+
+        // Back to @welcome. Tips for everything else: @tips.
+        """, updatedAt: at(-20))
+
+        let tips = TallyDocument(content: """
+        # Tips
+        // The shortcuts and small touches that make Vektor pleasant.
+
+        // ⌘N            — new calculation
+        // ⌘L            — show all your calculations
+        // ⌘1 / ⌘2 ...   — switch pane
+        // @page         — click an @reference to jump to that page
+        // Right-click a doc in the list → Pin to keep it on top
+
+        // Comments:
+        //   #  …  bold-ish section header
+        //   // …  muted side note (doesn't try to calculate)
+
+        // "prev" always refers to the most recent result. Chains
+        // of math get clean fast:
+        100
+        prev * 0.19
+        prev + 100                      // total incl. VAT, three lines
+
+        // Done? @welcome. Or @math for a refresher.
+        """, updatedAt: at(-10))
+
+        // Welcome lives last so it lands at the top of the list and
+        // is also the first thing the user sees. Pinned so it stays
+        // there until they explicitly unpin.
+        let welcome = TallyDocument(content: """
+        # Welcome to Vektor
+        // Vektor is a calculator that thinks too much. It does the
+        // boring math. It also does units, currencies, time zones,
+        // dates, METARs, runways, stock quotes — basically anything
+        // you'd otherwise open four tabs for.
+
+        // Click any @reference below to jump to that page. Each one
+        // is short, hands-on, and stays in your sidebar so you can
+        // come back any time.
+
+        // Start here:
+        //   @math      — arithmetic, variables, "prev"
+        //   @units     — knots, hPa, kilowatts, the lot
+        //   @money     — FX, crypto, live single stocks
+        //   @time      — time-zone math
+        //   @dates     — days-between, age, weekdays
+
+        // For specialists:
+        //   @aviation  — METAR / TAF / RWY / sun / altitude
+        //   @stocks    — Buffett scorecard + FMP setup
+        //   @tips      — keyboard shortcuts + cleanup tricks
+
+        // A test, so you see what live looks like:
+        2 + 2
+        120 kt in km/h
+        100 EUR in USD
+        Berlin time
+
+        // This page is yours. Edit it, gut it, pin it, delete it.
+        // Vektor won't take it personally.
+        """, updatedAt: at(0), isPinned: true)
+
+        return [welcome, tips, stocks, aviation, dates, time, money, units, math]
     }
 }
