@@ -185,6 +185,38 @@ struct CalculatorPane: View {
             paragraph.alignment = isWeather ? .left : .right
             paragraph.lineBreakMode = .byWordWrapping
             for (idx, line) in lines.enumerated() {
+                // Freshness sentinel: a zero-width prefix from the
+                // briefing handler marking this line as a per-airport
+                // METAR/TAF age summary. Strip the sentinel, render
+                // with the same styling as `renderAnnotation` (10.5pt
+                // mono, tone colour) so multi-airport briefings show
+                // a freshness chip under each block.
+                if let freshness = freshnessFromSentinel(line) {
+                    let cleaned = NSMutableAttributedString(string: freshness.text)
+                    let r = NSRange(location: 0, length: cleaned.length)
+                    cleaned.addAttribute(
+                        .font,
+                        value: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular),
+                        range: r
+                    )
+                    cleaned.addAttribute(.paragraphStyle, value: paragraph, range: r)
+                    let colour: NSColor
+                    switch freshness.tone {
+                    case .fresh:    colour = NSColor(VektorTheme.muted)
+                    case .stale:    colour = NSColor(VektorTheme.statusCaution)
+                    case .outdated: colour = NSColor(VektorTheme.statusBad)
+                    }
+                    cleaned.addAttribute(.foregroundColor, value: colour, range: r)
+                    result.append(cleaned)
+                    if idx < lines.count - 1 {
+                        result.append(NSAttributedString(string: "\n",
+                                                        attributes: [
+                                                            .font: monoFont,
+                                                            .paragraphStyle: paragraph,
+                                                        ]))
+                    }
+                    continue
+                }
                 let lineAttr = NSMutableAttributedString(string: line)
                 let lineRange = NSRange(location: 0, length: lineAttr.length)
                 lineAttr.addAttribute(.font, value: monoFont, range: lineRange)
@@ -220,6 +252,23 @@ struct CalculatorPane: View {
             }
             return result
         }
+    }
+
+    /// Decode the briefing freshness sentinel from a line. The engine
+    /// emits a zero-width prefix (`\u{200B}` / `\u{200C}` / `\u{200D}`)
+    /// to mark per-airport METAR/TAF age summaries; the prefix encodes
+    /// the tone. Returns nil for ordinary lines.
+    static func freshnessFromSentinel(_ line: String) -> (text: String, tone: LineResult.Annotation.Tone)? {
+        guard let first = line.unicodeScalars.first else { return nil }
+        let tone: LineResult.Annotation.Tone
+        switch first.value {
+        case 0x200B: tone = .fresh
+        case 0x200C: tone = .stale
+        case 0x200D: tone = .outdated
+        default:     return nil
+        }
+        let text = String(line.unicodeScalars.dropFirst())
+        return (text, tone)
     }
 
     /// "updated X min ago" / similar freshness annotation, on its own

@@ -920,9 +920,7 @@ public final class NumiEngine {
         let icaos = Array(tokens.dropFirst())
 
         var blocks: [String] = []
-        var tones: [LineResult.Annotation.Tone] = []
-        var metarAge: Int? = nil
-        var tafAge: Int? = nil
+        var allTones: [LineResult.Annotation.Tone] = []
 
         for icao in icaos {
             let metarLine  = handleMetarLine("METAR \(icao)")
@@ -937,18 +935,22 @@ public final class NumiEngine {
             if let hz = hazardLine, !hz.isEmpty {
                 block += hz
             }
+            var perAirportTones: [LineResult.Annotation.Tone] = []
             if let m = metarLine {
                 if !block.isEmpty { block += "\n\n" }
                 block += m.value
-                if let t = m.annotation?.tone { tones.append(t) }
+                if let t = m.annotation?.tone {
+                    perAirportTones.append(t)
+                    allTones.append(t)
+                }
             }
-            // (No METAR "observed" / TAF "issued" local-time inline
-            //  lines — the bottom freshness annotation already
-            //  conveys age. Keep the briefing tight.)
             if let t = tafLine {
                 if !block.isEmpty { block += "\n\n" }
                 block += t.value
-                if let tn = t.annotation?.tone { tones.append(tn) }
+                if let tn = t.annotation?.tone {
+                    perAirportTones.append(tn)
+                    allTones.append(tn)
+                }
             }
             if let r = rwyText {
                 if !block.isEmpty { block += "\n\n" }
@@ -956,40 +958,62 @@ public final class NumiEngine {
             }
             if !block.isEmpty { block += "\n\n" }
             block += altText
-            blocks.append(block)
 
-            // Track ages per kind so the bottom annotation can say
-            // "METAR 12m · TAF 3h" instead of conflating the two
-            // (which have very different freshness windows).
+            // Per-airport freshness line, inlined at the bottom of the
+            // block so multi-airport briefings show three separate
+            // ages instead of one max-across-all summary at the very
+            // end. Marked with a zero-width sentinel so the renderer
+            // styles it like an annotation (smaller, muted).
+            var perAirportMetarAge: Int? = nil
+            var perAirportTafAge: Int? = nil
             if let mc = MainActor.assumeIsolated({
                 MetarCacheBridge.shared.cached(kind: .metar, icao: icao)
             }) {
-                let age = Int(Date().timeIntervalSince(
+                perAirportMetarAge = Int(Date().timeIntervalSince(
                     Self.observationTime(in: mc.raw) ?? mc.fetchedAt
                 ))
-                metarAge = max(metarAge ?? 0, age)
             }
             if let tc = MainActor.assumeIsolated({
                 MetarCacheBridge.shared.cached(kind: .taf, icao: icao)
             }) {
-                let age = Int(Date().timeIntervalSince(
+                perAirportTafAge = Int(Date().timeIntervalSince(
                     Self.observationTime(in: tc.raw) ?? tc.fetchedAt
                 ))
-                tafAge = max(tafAge ?? 0, age)
             }
+            var freshnessParts: [String] = []
+            if let m = perAirportMetarAge { freshnessParts.append("METAR \(Self.formatAge(m))") }
+            if let t = perAirportTafAge   { freshnessParts.append("TAF \(Self.formatAge(t))") }
+            if !freshnessParts.isEmpty {
+                let perAirportTone: LineResult.Annotation.Tone =
+                    perAirportTones.contains(.outdated) ? .outdated :
+                    perAirportTones.contains(.stale)    ? .stale    : .fresh
+                block += "\n" + Self.freshnessSentinel(for: perAirportTone)
+                       + freshnessParts.joined(separator: " · ")
+            }
+
+            blocks.append(block)
         }
 
         let value = blocks.joined(separator: "\n\n———\n\n")
-        let worstTone: LineResult.Annotation.Tone =
-            tones.contains(.outdated) ? .outdated :
-            tones.contains(.stale)    ? .stale    : .fresh
-        var labelParts: [String] = []
-        if let m = metarAge { labelParts.append("METAR \(Self.formatAge(m))") }
-        if let t = tafAge   { labelParts.append("TAF \(Self.formatAge(t))") }
-        let label = labelParts.isEmpty
-            ? "awaiting data"
-            : labelParts.joined(separator: " · ")
-        return MetarLine(value: value, annotation: LineResult.Annotation(label: label, tone: worstTone))
+        // No bottom annotation — freshness is inline per airport.
+        // Tones are still tracked locally so future callers can read
+        // the worst-tone state if needed; not used for now.
+        _ = allTones
+        return MetarLine(value: value, annotation: nil)
+    }
+
+    /// Zero-width prefix that marks a freshness line in briefing
+    /// output. The calculator renderer detects these and styles the
+    /// line like a `LineResult.Annotation` (10.5pt monospace, tone
+    /// colour). The three code points are all invisible — they survive
+    /// copy-paste cleanly and don't affect string measurement in the
+    /// engine.
+    static func freshnessSentinel(for tone: LineResult.Annotation.Tone) -> String {
+        switch tone {
+        case .fresh:    return "\u{200B}"   // zero-width space
+        case .stale:    return "\u{200C}"   // zero-width non-joiner
+        case .outdated: return "\u{200D}"   // zero-width joiner
+        }
     }
 
     /// One-line runway summary for a briefing. Lists every runway with
