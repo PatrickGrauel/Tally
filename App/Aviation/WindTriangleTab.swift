@@ -1,22 +1,22 @@
 import SwiftUI
-import TallyAviation
+import VektorAviation
 
 struct WindTriangleTab: View {
-    @AppStorage("tally.e6b.wind.course")    private var course: Double = 52      // TC
-    @AppStorage("tally.e6b.wind.tas")       private var tas: Double = 120
-    @AppStorage("tally.e6b.wind.windFrom")  private var windFrom: Double = 280
-    @AppStorage("tally.e6b.wind.windSpeed") private var windSpeed: Double = 15
-    @AppStorage("tally.e6b.wind.variation") private var variation: Double = 7    // °W positive
-    @AppStorage("tally.e6b.wind.deviation") private var deviation: Double = 5    // compass deviation
+    @AppStorage("vektor.e6b.wind.course")    private var course: Double = 52      // TC
+    @AppStorage("vektor.e6b.wind.tas")       private var tas: Double = 120
+    @AppStorage("vektor.e6b.wind.windFrom")  private var windFrom: Double = 280
+    @AppStorage("vektor.e6b.wind.windSpeed") private var windSpeed: Double = 15
+    @AppStorage("vektor.e6b.wind.variation") private var variation: Double = 7    // °W positive
+    @AppStorage("vektor.e6b.wind.deviation") private var deviation: Double = 5    // compass deviation
 
-    @AppStorage("tally.e6b.wind.show.true")    private var showTrue: Bool = true
-    @AppStorage("tally.e6b.wind.show.mag")     private var showMag: Bool = true
-    @AppStorage("tally.e6b.wind.show.compass") private var showCompass: Bool = false
-    @AppStorage("tally.e6b.wind.show.course")  private var showCourse: Bool = true
-    @AppStorage("tally.e6b.wind.show.heading") private var showHeading: Bool = true
-    @AppStorage("tally.e6b.wind.show.track")   private var showTrack: Bool = false
-    @AppStorage("tally.e6b.wind.show.wind")    private var showWind: Bool = true
-    @AppStorage("tally.e6b.wind.show.aircraft") private var showAircraft: Bool = true
+    @AppStorage("vektor.e6b.wind.show.true")    private var showTrue: Bool = true
+    @AppStorage("vektor.e6b.wind.show.mag")     private var showMag: Bool = true
+    @AppStorage("vektor.e6b.wind.show.compass") private var showCompass: Bool = false
+    @AppStorage("vektor.e6b.wind.show.course")  private var showCourse: Bool = true
+    @AppStorage("vektor.e6b.wind.show.heading") private var showHeading: Bool = true
+    @AppStorage("vektor.e6b.wind.show.track")   private var showTrack: Bool = false
+    @AppStorage("vektor.e6b.wind.show.wind")    private var showWind: Bool = true
+    @AppStorage("vektor.e6b.wind.show.aircraft") private var showAircraft: Bool = true
 
     var body: some View {
         let s = E6B.windTriangle(courseDeg: course, tas: tas, windFromDeg: windFrom, windSpeed: windSpeed)
@@ -65,7 +65,7 @@ struct WindTriangleTab: View {
                     showWind: showWind, showAircraft: showAircraft
                 )
                 .frame(height: 380)
-                .background(TallyTheme.surface)
+                .background(VektorTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
@@ -255,7 +255,7 @@ private struct NavigationFan: View {
                               y: labelPos.y - 7 * scale,
                               width: pillW * scale, height: 14 * scale)
             context.fill(Path(roundedRect: pill, cornerRadius: 3 * scale),
-                         with: .color(TallyTheme.surface))
+                         with: .color(VektorTheme.surface))
             drawText(in: &context, at: labelPos, anchor: .center,
                      c.label,
                      font: .system(size: 9.5 * scale, weight: .semibold, design: .monospaced),

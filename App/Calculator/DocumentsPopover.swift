@@ -13,14 +13,14 @@ struct DocumentsPopover: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                 TextField("Search calculations", text: $search)
                     .textFieldStyle(.plain)
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                     .focused($searchFocused)
             }
             .padding(8)
-            .background(TallyTheme.codeSurface)
+            .background(VektorTheme.codeSurface)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding([.horizontal, .top], 8)
 
@@ -30,12 +30,12 @@ struct DocumentsPopover: View {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
-                            .foregroundStyle(TallyTheme.muted)
+                            .foregroundStyle(VektorTheme.muted)
                         Text(search.isEmpty
                              ? "No calculations yet."
                              : "No calculations match '\(search)'.")
                             .font(.callout)
-                            .foregroundStyle(TallyTheme.muted)
+                            .foregroundStyle(VektorTheme.muted)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.vertical, 32)
@@ -66,7 +66,7 @@ struct DocumentsPopover: View {
 }
 
 private struct DocumentRow: View {
-    let doc: TallyDocument
+    let doc: VektorDocument
     let isSelected: Bool
     let onSelect: () -> Void
     let onTogglePin: () -> Void
@@ -82,7 +82,7 @@ private struct DocumentRow: View {
                 if doc.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 9))
-                        .foregroundStyle(TallyTheme.accent)
+                        .foregroundStyle(VektorTheme.accent)
                         .rotationEffect(.degrees(45))
                         .padding(.top, 4)
                 }
@@ -92,12 +92,12 @@ private struct DocumentRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(doc.title)
                     .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Text(doc.updatedAt, style: .relative)
                     .font(.caption2)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -108,7 +108,7 @@ private struct DocumentRow: View {
                 onDelete()
             } label: {
                 Image(systemName: "trash")
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }
@@ -119,7 +119,7 @@ private struct DocumentRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(isSelected ? TallyTheme.surface : Color.clear)
+        .background(isSelected ? VektorTheme.surface : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
         .onTapGesture { onSelect() }

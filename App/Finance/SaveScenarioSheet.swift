@@ -23,7 +23,7 @@ struct SaveScenarioSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(title).font(.headline).foregroundStyle(TallyTheme.text)
+            Text(title).font(.headline).foregroundStyle(VektorTheme.text)
             TextField(placeholder, text: $name)
                 .textFieldStyle(.roundedBorder)
             HStack {

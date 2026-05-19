@@ -608,11 +608,11 @@ enum DCAScorer {
         let extraLines: [AxisLine] = [
             AxisLine(label: "R&D",
                      values: Array(rdSeries),
-                     color: TallyTheme.chartLine2,
+                     color: VektorTheme.chartLine2,
                      target: 0.05),
             AxisLine(label: "Dep",
                      values: Array(depSeries),
-                     color: TallyTheme.chartLine3,
+                     color: VektorTheme.chartLine3,
                      target: 0.10),
         ]
         return AxisScore(

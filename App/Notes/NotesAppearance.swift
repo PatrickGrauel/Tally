@@ -5,11 +5,11 @@ import AppKit
 /// reading width, line height. The choices live in @AppStorage so they
 /// survive launches, and are exposed via a single
 /// `NotesAppearanceSettings` ObservableObject the editor and list bind
-/// to. The global `TallyTheme` keeps owning the rest of Vektor's
+/// to. The global `VektorTheme` keeps owning the rest of Vektor's
 /// chrome; this struct only overrides what the notes pane draws.
 
 /// Visual theme presets specific to the notes pane.
-///   - `system` follows the OS appearance via `TallyTheme` (the
+///   - `system` follows the OS appearance via `VektorTheme` (the
 ///     default — what existing users see today).
 ///   - `sepia` warm paper-tone background with deep ink text. Reads
 ///     well in long-form writing.
@@ -28,33 +28,33 @@ enum NotesTheme: String, CaseIterable, Identifiable {
 
     var background: Color {
         switch self {
-        case .system:       return TallyTheme.background
+        case .system:       return VektorTheme.background
         case .sepia:        return Color(red: 0xF5/255, green: 0xEE/255, blue: 0xD8/255)
         case .darkContrast: return Color(red: 0x05/255, green: 0x08/255, blue: 0x10/255)
         }
     }
     var surface: Color {
         switch self {
-        case .system:       return TallyTheme.surface
+        case .system:       return VektorTheme.surface
         case .sepia:        return Color(red: 0xEB/255, green: 0xE2/255, blue: 0xC6/255)
         case .darkContrast: return Color(red: 0x0D/255, green: 0x12/255, blue: 0x1C/255)
         }
     }
     var text: Color {
         switch self {
-        case .system:       return TallyTheme.text
+        case .system:       return VektorTheme.text
         case .sepia:        return Color(red: 0x2A/255, green: 0x21/255, blue: 0x10/255)
         case .darkContrast: return Color(red: 0xF6/255, green: 0xF7/255, blue: 0xFB/255)
         }
     }
     var muted: Color {
         switch self {
-        case .system:       return TallyTheme.muted
+        case .system:       return VektorTheme.muted
         case .sepia:        return Color(red: 0x77/255, green: 0x64/255, blue: 0x42/255)
         case .darkContrast: return Color(red: 0x9C/255, green: 0xA5/255, blue: 0xBC/255)
         }
     }
-    var accent: Color { TallyTheme.accent }  // accent stays Vektor orange across themes
+    var accent: Color { VektorTheme.accent }  // accent stays Vektor orange across themes
 }
 
 /// Font choice for the editor + preview text. We always layer the
@@ -128,10 +128,10 @@ enum NotesReadingWidth: String, CaseIterable, Identifiable {
 final class NotesAppearanceSettings: ObservableObject {
     static let shared = NotesAppearanceSettings()
 
-    @AppStorage("tally.notes.theme") private var themeRaw: String = NotesTheme.system.rawValue
-    @AppStorage("tally.notes.font") private var fontRaw: String = NotesFont.system.rawValue
-    @AppStorage("tally.notes.fontSize") var fontSize: Double = 14
-    @AppStorage("tally.notes.readingWidth") private var readingWidthRaw: String = NotesReadingWidth.medium.rawValue
+    @AppStorage("vektor.notes.theme") private var themeRaw: String = NotesTheme.system.rawValue
+    @AppStorage("vektor.notes.font") private var fontRaw: String = NotesFont.system.rawValue
+    @AppStorage("vektor.notes.fontSize") var fontSize: Double = 14
+    @AppStorage("vektor.notes.readingWidth") private var readingWidthRaw: String = NotesReadingWidth.medium.rawValue
 
     var theme: NotesTheme {
         get { NotesTheme(rawValue: themeRaw) ?? .system }

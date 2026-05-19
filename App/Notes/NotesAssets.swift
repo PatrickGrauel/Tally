@@ -25,7 +25,7 @@ enum NotesAssets {
                               create: true)
         // Use a stable subfolder so a future "import / export notes"
         // feature has a single tree to bundle. The "Vektor" rather than
-        // "Tally" namespace matches the app's product name in the
+        // "Vektor" namespace matches the app's product name in the
         // window chrome.
         let dir = base.appendingPathComponent("Vektor/notes-assets", isDirectory: true)
         if !fm.fileExists(atPath: dir.path) {

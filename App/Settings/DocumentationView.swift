@@ -45,7 +45,7 @@ struct DocumentationView: View {
                 .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(TallyTheme.background)
+            .background(VektorTheme.background)
         }
         .frame(minWidth: 760, minHeight: 520)
         .toolbar {
@@ -357,7 +357,7 @@ private struct Doc<Content: View>: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title)
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
             content()
         }
     }
@@ -374,7 +374,7 @@ private struct DocParagraph: View {
     var body: some View {
         Text(.init(markdown))
             .font(.system(size: 13.5))
-            .foregroundStyle(TallyTheme.text)
+            .foregroundStyle(VektorTheme.text)
             .lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -386,9 +386,9 @@ private struct DocCode: View {
         ScrollView(.horizontal, showsIndicators: false) {
             Text(block)
                 .font(.system(size: 12.5, design: .monospaced))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .padding(12)
-                .background(TallyTheme.surface)
+                .background(VektorTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
@@ -403,18 +403,18 @@ private struct DocTable: View {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                         Text(.init(cell))
                             .font(.system(size: 12.5))
-                            .foregroundStyle(TallyTheme.text)
+                            .foregroundStyle(VektorTheme.text)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(.vertical, 6)
                 if idx < rows.count - 1 {
-                    Divider().background(TallyTheme.muted.opacity(0.2))
+                    Divider().background(VektorTheme.muted.opacity(0.2))
                 }
             }
         }
         .padding(12)
-        .background(TallyTheme.surface.opacity(0.4))
+        .background(VektorTheme.surface.opacity(0.4))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
@@ -425,10 +425,10 @@ private struct DocBullets: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(items, id: \.self) { item in
                 HStack(alignment: .top, spacing: 8) {
-                    Text("·").foregroundStyle(TallyTheme.muted)
+                    Text("·").foregroundStyle(VektorTheme.muted)
                     Text(.init(item))
                         .font(.system(size: 13.5))
-                        .foregroundStyle(TallyTheme.text)
+                        .foregroundStyle(VektorTheme.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

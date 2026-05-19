@@ -15,7 +15,7 @@ import Security
 /// updates a reader in another — mirroring the cross-view sync that
 /// `@AppStorage` got for free via UserDefaults's KVO.
 enum KeychainStorage {
-    static let changeNotification = Notification.Name("tally.keychain.changed")
+    static let changeNotification = Notification.Name("vektor.keychain.changed")
 
     /// `userInfo` key on `changeNotification`. Value is the account
     /// string that just changed.
@@ -25,9 +25,9 @@ enum KeychainStorage {
     /// string in its "Vektor wants to use your confidential information
     /// stored in '<service>'" prompt — using the product name reads
     /// cleanly there, where the bundle ID (kept at the legacy
-    /// `app.tally.Tally` for data continuity) would not.
+    /// `app.vektor.Vektor` for data continuity) would not.
     ///
-    /// Renamed from `app.tally.Tally` in 1.0.0. Items written under the
+    /// Renamed from `app.vektor.Vektor` in 1.0.0. Items written under the
     /// old service are now orphaned; users with an existing FMP /
     /// OpenExchangeRates key re-paste once and the new entries land
     /// under `Vektor`. The orphan entries are visible in Keychain

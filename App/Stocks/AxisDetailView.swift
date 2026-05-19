@@ -83,7 +83,7 @@ struct AxisDetailView: View {
             Rectangle().fill(color).frame(width: 12, height: 2)
             Text(label)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
             if let t = target {
                 Text("target ≤\(format(t))")
                     .font(.system(size: 10))
@@ -163,7 +163,7 @@ struct AxisDetailView: View {
                 }
             }
             .padding(10)
-            .background(TallyTheme.codeSurface.opacity(0.5))
+            .background(VektorTheme.codeSurface.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
@@ -224,7 +224,7 @@ struct AxisDetailView: View {
         }
         return Text(text)
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .foregroundStyle(value == nil ? .secondary : TallyTheme.text)
+            .foregroundStyle(value == nil ? .secondary : VektorTheme.text)
     }
 
     // MARK: - Breakdown
@@ -241,13 +241,13 @@ struct AxisDetailView: View {
                     let isTotal = line.contains("Total")
                     Text(line)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(isTotal ? TallyTheme.accent : TallyTheme.text)
+                        .foregroundStyle(isTotal ? VektorTheme.accent : VektorTheme.text)
                         .fontWeight(isTotal ? .semibold : .regular)
                 }
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TallyTheme.codeSurface.opacity(0.5))
+            .background(VektorTheme.codeSurface.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
@@ -376,7 +376,7 @@ private struct AxisChartCanvas: View {
                                    style: StrokeStyle(lineWidth: 0.6, dash: [3, 3]))
                     let label = Text(primary.format(t.value))
                         .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(TallyTheme.muted)
+                        .foregroundColor(VektorTheme.muted)
                     context.draw(label, at: CGPoint(x: chartRect.minX - 6, y: y),
                                  anchor: .trailing)
                 }
@@ -410,7 +410,7 @@ private struct AxisChartCanvas: View {
                 let suffix = year % 100
                 let label = Text(String(format: "%02d", suffix))
                     .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(TallyTheme.muted)
+                    .foregroundColor(VektorTheme.muted)
                 context.draw(label, at: CGPoint(x: x, y: chartRect.maxY + 10),
                              anchor: .center)
             }
@@ -557,7 +557,7 @@ private struct AxisSubChartCanvas: View {
                                    style: StrokeStyle(lineWidth: 0.6, dash: [3, 3]))
                     let label = Text(trend.format(t.value))
                         .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(TallyTheme.muted)
+                        .foregroundColor(VektorTheme.muted)
                     context.draw(label,
                                  at: CGPoint(x: chartRect.minX - 6, y: y),
                                  anchor: .trailing)
@@ -568,7 +568,7 @@ private struct AxisSubChartCanvas: View {
                 for v in [maxV, minV] {
                     let label = Text(trend.format(v))
                         .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(TallyTheme.muted)
+                        .foregroundColor(VektorTheme.muted)
                     context.draw(label,
                                  at: CGPoint(x: chartRect.minX - 6, y: yFor(v)),
                                  anchor: .trailing)
@@ -581,7 +581,7 @@ private struct AxisSubChartCanvas: View {
                 let suffix = year % 100
                 let label = Text(String(format: "%02d", suffix))
                     .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(TallyTheme.muted)
+                    .foregroundColor(VektorTheme.muted)
                 context.draw(label, at: CGPoint(x: x, y: chartRect.maxY + 8),
                              anchor: .center)
             }
@@ -614,10 +614,10 @@ private struct AxisSubChartCanvas: View {
 extension ScoreTier {
     var colour: Color {
         switch self {
-        case .strong: return TallyTheme.statusGood
-        case .mixed:  return TallyTheme.statusCaution
-        case .weak:   return TallyTheme.statusBad
-        case .na:     return TallyTheme.muted
+        case .strong: return VektorTheme.statusGood
+        case .mixed:  return VektorTheme.statusCaution
+        case .weak:   return VektorTheme.statusBad
+        case .na:     return VektorTheme.muted
         }
     }
 }

@@ -20,7 +20,7 @@ struct StocksManageView: View {
     /// Whether the Keychain currently has an FMP key. Read from a
     /// UserDefaults mirror so this view can render without triggering
     /// a Keychain prompt at appearance time.
-    @AppStorage("tally.stocks.fmpApiKey.present") private var hasFMPKey: Bool = false
+    @AppStorage("vektor.stocks.fmpApiKey.present") private var hasFMPKey: Bool = false
     /// Buffer for a new key the user is currently typing. The actual
     /// stored key is never displayed back into this field — SecureFields
     /// don't help anyone by echoing a secret, even masked.
@@ -45,7 +45,7 @@ struct StocksManageView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(TallyTheme.accent)
+                        .foregroundStyle(VektorTheme.accent)
                     Text("Stocks data source")
                         .font(.headline)
                 }
@@ -58,12 +58,12 @@ struct StocksManageView: View {
                     if hasFMPKey {
                         Text("· stored")
                             .font(.caption2)
-                            .foregroundStyle(TallyTheme.statusGood)
+                            .foregroundStyle(VektorTheme.statusGood)
                     }
                     Spacer()
                     if hasFMPKey {
                         Button("Clear") {
-                            KeychainStorage.delete("tally.stocks.fmpApiKey")
+                            KeychainStorage.delete("vektor.stocks.fmpApiKey")
                             newKey = ""
                             monitor.reflectKeyPresence(present: false)
                             Task { await FMPClient.shared.setAPIKey(nil) }
@@ -180,7 +180,7 @@ struct StocksManageView: View {
     private func commitNewKeyIfNeeded() {
         let trimmed = newKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        KeychainStorage.set(trimmed, for: "tally.stocks.fmpApiKey")
+        KeychainStorage.set(trimmed, for: "vektor.stocks.fmpApiKey")
         newKey = ""
         monitor.reflectKeyPresence(present: true)
         Task { await FMPClient.shared.refreshAPIKeyFromKeychain() }

@@ -4,15 +4,15 @@ import SwiftUI
 /// retirement age, then inflation-adjusted withdrawals until the
 /// pot runs out. Verdict in the dashboard makes the answer obvious.
 struct RetirementForm: View {
-    @AppStorage("tally.finance.retire.currentAge")    private var currentAge: Double = 35
-    @AppStorage("tally.finance.retire.retireAge")     private var retireAge: Double = 65
-    @AppStorage("tally.finance.retire.currentSaved")  private var currentSaved: Double = 50000
-    @AppStorage("tally.finance.retire.monthly")       private var monthly: Double = 800
-    @AppStorage("tally.finance.retire.growthReturn")  private var growthReturn: Double = 6
-    @AppStorage("tally.finance.retire.spending")      private var spending: Double = 40000
-    @AppStorage("tally.finance.retire.withdrawReturn") private var withdrawReturn: Double = 4
-    @AppStorage("tally.finance.retire.inflation")     private var inflation: Double = 2.5
-    @AppStorage("tally.finance.retire.curr")          private var currency: String = "EUR"
+    @AppStorage("vektor.finance.retire.currentAge")    private var currentAge: Double = 35
+    @AppStorage("vektor.finance.retire.retireAge")     private var retireAge: Double = 65
+    @AppStorage("vektor.finance.retire.currentSaved")  private var currentSaved: Double = 50000
+    @AppStorage("vektor.finance.retire.monthly")       private var monthly: Double = 800
+    @AppStorage("vektor.finance.retire.growthReturn")  private var growthReturn: Double = 6
+    @AppStorage("vektor.finance.retire.spending")      private var spending: Double = 40000
+    @AppStorage("vektor.finance.retire.withdrawReturn") private var withdrawReturn: Double = 4
+    @AppStorage("vektor.finance.retire.inflation")     private var inflation: Double = 2.5
+    @AppStorage("vektor.finance.retire.curr")          private var currency: String = "EUR"
 
     private var inputs: RetirementMath.Inputs {
         RetirementMath.Inputs(
@@ -37,7 +37,7 @@ struct RetirementForm: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     private var dashboardSection: some View {
@@ -92,7 +92,7 @@ struct RetirementForm: View {
                     TextField("", value: $monthly, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
-                    Text(currency).foregroundStyle(TallyTheme.muted)
+                    Text(currency).foregroundStyle(VektorTheme.muted)
                 }
             }
             LabelledSlider(label: "Pre-retirement return",
@@ -117,7 +117,7 @@ struct RetirementForm: View {
                     TextField("", value: $spending, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
-                    Text(currency).foregroundStyle(TallyTheme.muted)
+                    Text(currency).foregroundStyle(VektorTheme.muted)
                 }
             }
             LabelledSlider(label: "Post-retirement return",
@@ -151,19 +151,19 @@ struct RetirementForm: View {
                 if years < 20 {
                     Text("Shortfall.")
                         .font(.callout.bold())
-                        .foregroundStyle(TallyTheme.statusBad)
+                        .foregroundStyle(VektorTheme.statusBad)
                     Text("The balance runs out before \(Int(retireAge) + 20). Closing the gap usually means some combination of: contributing more now, delaying retirement a few years, or planning a lower annual spend.")
                         .font(.callout)
                 } else if years < 35 {
                     Text("Adequate, with a buffer to keep an eye on.")
                         .font(.callout.bold())
-                        .foregroundStyle(TallyTheme.statusCaution)
+                        .foregroundStyle(VektorTheme.statusCaution)
                     Text("The funds cover \(Int(years)) years of retirement. Comfortable if you live an average lifespan and inflation stays near your assumption.")
                         .font(.callout)
                 } else {
                     Text("Fully funded with margin.")
                         .font(.callout.bold())
-                        .foregroundStyle(TallyTheme.statusGood)
+                        .foregroundStyle(VektorTheme.statusGood)
                     Text("Funds last \(Int(years))+ years. You could reasonably retire earlier, spend more, or shift to more conservative allocations as you approach retirement.")
                         .font(.callout)
                 }

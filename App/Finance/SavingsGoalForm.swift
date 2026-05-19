@@ -6,11 +6,11 @@ import SwiftUI
 /// shows what the user would actually end up with if they save a
 /// chosen amount per month instead.
 struct SavingsGoalForm: View {
-    @AppStorage("tally.finance.savings.target")  private var target: Double = 50000
-    @AppStorage("tally.finance.savings.current") private var current: Double = 5000
-    @AppStorage("tally.finance.savings.months")  private var months: Double = 36
-    @AppStorage("tally.finance.savings.return")  private var annualReturn: Double = 4
-    @AppStorage("tally.finance.savings.curr")    private var currency: String = "EUR"
+    @AppStorage("vektor.finance.savings.target")  private var target: Double = 50000
+    @AppStorage("vektor.finance.savings.current") private var current: Double = 5000
+    @AppStorage("vektor.finance.savings.months")  private var months: Double = 36
+    @AppStorage("vektor.finance.savings.return")  private var annualReturn: Double = 4
+    @AppStorage("vektor.finance.savings.curr")    private var currency: String = "EUR"
 
     private var inputs: SavingsMath.Inputs {
         SavingsMath.Inputs(
@@ -30,7 +30,7 @@ struct SavingsGoalForm: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     private var dashboardSection: some View {
@@ -92,7 +92,7 @@ struct SavingsGoalForm: View {
                     TextField("", value: $current, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
-                    Text(currency).foregroundStyle(TallyTheme.muted)
+                    Text(currency).foregroundStyle(VektorTheme.muted)
                 }
             }
             LabelledSlider(label: "Months to goal",
@@ -137,7 +137,7 @@ struct SavingsGoalForm: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Text(value)
                 .font(.system(.callout, design: .rounded).weight(.medium))
                 .foregroundStyle(tone.color)

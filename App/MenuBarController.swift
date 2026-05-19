@@ -129,7 +129,7 @@ final class MenuBarController: NSObject {
             // Re-check Always-on-Top each fire — the user may have
             // toggled it on since the observer was installed, in
             // which case the WindowLevelApplier policy wins.
-            let alwaysOnTop = UserDefaults.standard.bool(forKey: "tally.alwaysOnTop")
+            let alwaysOnTop = UserDefaults.standard.bool(forKey: "vektor.alwaysOnTop")
             if !alwaysOnTop { window?.level = .normal }
             if let observer = self?.resignKeyObserver {
                 NotificationCenter.default.removeObserver(observer)
@@ -276,7 +276,7 @@ final class MenuBarController: NSObject {
 
     @objc private func menuToggleMenuBarOnly() {
         let new = !isMenuBarOnly()
-        UserDefaults.standard.set(new, forKey: "tally.menuBarOnly")
+        UserDefaults.standard.set(new, forKey: "vektor.menuBarOnly")
         applyActivationPolicy()
         contextMenu = makeMenu()  // refresh checkmark
     }
@@ -305,7 +305,7 @@ final class MenuBarController: NSObject {
     }
 
     private func isMenuBarOnly() -> Bool {
-        UserDefaults.standard.bool(forKey: "tally.menuBarOnly")
+        UserDefaults.standard.bool(forKey: "vektor.menuBarOnly")
     }
 
     /// Relaunch Vektor cleanly. The only fully reliable way to drop the

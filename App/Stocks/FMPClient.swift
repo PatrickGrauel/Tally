@@ -215,8 +215,8 @@ actor FMPClient {
         // init time but the presence flag says one exists, fetch it now.
         // This is the first Keychain access of the session for users
         // who actually want stocks data — prompt (if any) lands here.
-        if (apiKey?.isEmpty ?? true), KeychainStorage.hasKey("tally.stocks.fmpApiKey") {
-            self.apiKey = KeychainStorage.get("tally.stocks.fmpApiKey")
+        if (apiKey?.isEmpty ?? true), KeychainStorage.hasKey("vektor.stocks.fmpApiKey") {
+            self.apiKey = KeychainStorage.get("vektor.stocks.fmpApiKey")
         }
         guard let key = apiKey, !key.isEmpty else {
             throw FMPError.missingAPIKey
@@ -425,8 +425,8 @@ actor FMPClient {
         }
         // Lazy Keychain read: same pattern as the main fetch path —
         // only touch the Keychain when we actually need the value.
-        if (apiKey?.isEmpty ?? true), KeychainStorage.hasKey("tally.stocks.fmpApiKey") {
-            self.apiKey = KeychainStorage.get("tally.stocks.fmpApiKey")
+        if (apiKey?.isEmpty ?? true), KeychainStorage.hasKey("vektor.stocks.fmpApiKey") {
+            self.apiKey = KeychainStorage.get("vektor.stocks.fmpApiKey")
         }
         guard let key = apiKey, !key.isEmpty else {
             throw FMPError.missingAPIKey
@@ -517,8 +517,8 @@ actor FMPClient {
             }
             return []
         }
-        if (apiKey?.isEmpty ?? true), KeychainStorage.hasKey("tally.stocks.fmpApiKey") {
-            self.apiKey = KeychainStorage.get("tally.stocks.fmpApiKey")
+        if (apiKey?.isEmpty ?? true), KeychainStorage.hasKey("vektor.stocks.fmpApiKey") {
+            self.apiKey = KeychainStorage.get("vektor.stocks.fmpApiKey")
         }
         guard let key = apiKey, !key.isEmpty else { return [] }
 
@@ -588,7 +588,7 @@ actor FMPClient {
     private static let dailyBytesLimit = 450 * 1024 * 1024   // 450 MB
 
     private var dailyCallsLimit: Int { FMPPlan.currentDailyCap() }
-    private static let logger = Logger(subsystem: "app.tally.Tally", category: "fmp")
+    private static let logger = Logger(subsystem: "app.vektor.Vektor", category: "fmp")
     private static let host = "https://financialmodelingprep.com/stable"
 
     private struct CacheEntry: Codable {
@@ -637,11 +637,11 @@ actor FMPClient {
     /// changed since the value was stored) fires HERE, in the context
     /// of the user actively saving a key.
     func refreshAPIKeyFromKeychain() {
-        guard KeychainStorage.hasKey("tally.stocks.fmpApiKey") else {
+        guard KeychainStorage.hasKey("vektor.stocks.fmpApiKey") else {
             self.apiKey = nil
             return
         }
-        self.apiKey = KeychainStorage.get("tally.stocks.fmpApiKey")
+        self.apiKey = KeychainStorage.get("vektor.stocks.fmpApiKey")
     }
 
     private func makeURL(endpoint: Endpoint, symbol: String, apiKey: String, now: Date = Date()) -> URL {
@@ -689,16 +689,16 @@ actor FMPClient {
     }
 
     private func persistBudget() {
-        UserDefaults.standard.set(budget.callsToday, forKey: "tally.stocks.callsToday")
-        UserDefaults.standard.set(budget.bytesToday, forKey: "tally.stocks.bytesToday")
-        UserDefaults.standard.set(budget.resetAt,    forKey: "tally.stocks.callsResetAt")
+        UserDefaults.standard.set(budget.callsToday, forKey: "vektor.stocks.callsToday")
+        UserDefaults.standard.set(budget.bytesToday, forKey: "vektor.stocks.bytesToday")
+        UserDefaults.standard.set(budget.resetAt,    forKey: "vektor.stocks.callsResetAt")
     }
 
     private static func loadBudget() -> DailyBudget {
         let ud = UserDefaults.standard
-        let calls = ud.integer(forKey: "tally.stocks.callsToday")
-        let bytes = ud.integer(forKey: "tally.stocks.bytesToday")
-        let reset = (ud.object(forKey: "tally.stocks.callsResetAt") as? Date)
+        let calls = ud.integer(forKey: "vektor.stocks.callsToday")
+        let bytes = ud.integer(forKey: "vektor.stocks.bytesToday")
+        let reset = (ud.object(forKey: "vektor.stocks.callsResetAt") as? Date)
             ?? Date(timeIntervalSince1970: 0)
         return DailyBudget(callsToday: calls, bytesToday: bytes, resetAt: reset)
     }

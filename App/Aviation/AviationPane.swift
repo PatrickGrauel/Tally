@@ -6,13 +6,13 @@ import SwiftUI
 /// of three. Order follows a typical pre-flight workflow: weather →
 /// flight planning → aircraft loading.
 struct AviationPane: View {
-    @AppStorage("tally.aviation.tab") private var rawTab: String = AviationTab.metar.rawValue
+    @AppStorage("vektor.aviation.tab") private var rawTab: String = AviationTab.metar.rawValue
     /// First-launch gate. Until the user explicitly accepts the disclaimer,
     /// the aviation tools are hidden — the pane shows `AviationDisclaimerView`
     /// instead. This is in addition to the README safety notice and the
     /// repo-level DISCLAIMER.md; here it puts the warning where the user
     /// will actually read it (right before they try to use the tools).
-    @AppStorage("tally.aviation.disclaimerAccepted") private var disclaimerAccepted: Bool = false
+    @AppStorage("vektor.aviation.disclaimerAccepted") private var disclaimerAccepted: Bool = false
 
     private var tab: AviationTab {
         AviationTab(rawValue: rawTab) ?? .metar
@@ -26,7 +26,7 @@ struct AviationPane: View {
                 AviationDisclaimerView { disclaimerAccepted = true }
             }
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     private var tabsView: some View {

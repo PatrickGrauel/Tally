@@ -67,15 +67,15 @@ struct TimeStripView: View {
                     .frame(height: Self.rowHeight)
                     .background(
                         hoveringRowID == city.id
-                            ? TallyTheme.codeSurface.opacity(0.5)
+                            ? VektorTheme.codeSurface.opacity(0.5)
                             : Color.clear
                     )
                     .draggable(city.id.uuidString) {
                         Text(city.name)
                             .font(.system(.body, design: .default))
-                            .foregroundStyle(TallyTheme.text)
+                            .foregroundStyle(VektorTheme.text)
                             .padding(6)
-                            .background(TallyTheme.surface)
+                            .background(VektorTheme.surface)
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
                     .dropDestination(for: String.self) { items, _ in
@@ -84,7 +84,7 @@ struct TimeStripView: View {
             }
         }
         .padding(.vertical, 6)
-        .background(TallyTheme.surface)
+        .background(VektorTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onReceive(nowTimer) { nowTick = $0 }
     }
@@ -116,13 +116,13 @@ struct TimeStripView: View {
         return HStack(spacing: 8) {
             Text(localText)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
             Text("·")
                 .font(.system(.caption))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Text(delta)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(delta == "now" ? TallyTheme.muted : TallyTheme.accent)
+                .foregroundStyle(delta == "now" ? VektorTheme.muted : VektorTheme.accent)
         }
         .padding(.horizontal, Self.outerPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -217,11 +217,11 @@ struct TimeStripView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(city.name)
                 .font(.system(.body, design: .default))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .lineLimit(1)
             Text(localTime(for: city, at: cursor))
                 .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
         }
     }
 
@@ -265,7 +265,7 @@ struct TimeStripView: View {
                 let x = CGFloat(i) * cellW + cellW / 2
                 let text = Text(String(format: "%02d", h))
                     .font(.caption2)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                 ctx.draw(text, at: CGPoint(x: x, y: axisH / 2))
             }
 
@@ -275,9 +275,9 @@ struct TimeStripView: View {
                 let inHours = city.isWorkingHour(date)
                 let asleep = isSleepHour(city: city, at: date)
                 let fill: Color
-                if inHours        { fill = TallyTheme.accent.opacity(0.55) }
-                else if asleep    { fill = TallyTheme.codeSurface.opacity(0.9) }
-                else              { fill = TallyTheme.surface.opacity(0.6) }
+                if inHours        { fill = VektorTheme.accent.opacity(0.55) }
+                else if asleep    { fill = VektorTheme.codeSurface.opacity(0.9) }
+                else              { fill = VektorTheme.surface.opacity(0.6) }
                 let rect = CGRect(x: CGFloat(i) * cellW, y: squaresTop,
                                   width: cellW, height: squaresH)
                 ctx.fill(Path(rect.insetBy(dx: 0.5, dy: 2)), with: .color(fill))
@@ -295,7 +295,7 @@ struct TimeStripView: View {
                 dotted.addLine(to: CGPoint(x: nowX, y: size.height))
                 ctx.stroke(
                     dotted,
-                    with: .color(TallyTheme.muted),
+                    with: .color(VektorTheme.muted),
                     style: StrokeStyle(lineWidth: 1, dash: [2, 3])
                 )
             }
@@ -305,7 +305,7 @@ struct TimeStripView: View {
             var line = Path()
             line.move(to: CGPoint(x: cursorX, y: 0))
             line.addLine(to: CGPoint(x: cursorX, y: size.height))
-            ctx.stroke(line, with: .color(TallyTheme.accent), lineWidth: 2)
+            ctx.stroke(line, with: .color(VektorTheme.accent), lineWidth: 2)
         }
         .frame(width: width)
         .accessibilityElement()
@@ -421,11 +421,11 @@ struct WorkingHoursEditor: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Working hours for \(city.name)")
                 .font(.headline)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
 
             HStack(spacing: 8) {
                 Text("From").frame(width: 50, alignment: .leading)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                 Picker("", selection: $startHour) {
                     ForEach(0..<24, id: \.self) { h in
                         Text(String(format: "%02d:00", h)).tag(h)
@@ -434,7 +434,7 @@ struct WorkingHoursEditor: View {
                 .labelsHidden()
                 .frame(width: 100)
                 Text("to")
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                 Picker("", selection: $endHour) {
                     ForEach(1...24, id: \.self) { h in
                         Text(String(format: "%02d:00", h)).tag(h)
@@ -445,7 +445,7 @@ struct WorkingHoursEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Workdays").font(.caption).foregroundStyle(TallyTheme.muted)
+                Text("Workdays").font(.caption).foregroundStyle(VektorTheme.muted)
                 HStack(spacing: 4) {
                     ForEach(WorkingHoursEditor.dayLabels.enumerated().map { $0 }, id: \.offset) { offset, label in
                         let weekday = offset + 1     // Sun=1 … Sat=7
@@ -626,7 +626,7 @@ struct PlaceSearchSheet: View {
             } else {
                 Text("Type to search worldwide — addresses, cities, neighbourhoods, POIs.")
                     .font(.caption)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                     .padding(.vertical, 4)
             }
 
@@ -637,7 +637,7 @@ struct PlaceSearchSheet: View {
                     ProgressView().controlSize(.small)
                     Text("Resolving…")
                         .font(.caption)
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                 }
                 Spacer()
                 Button("Cancel") { onCancel() }
@@ -651,16 +651,16 @@ struct PlaceSearchSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Add a place").font(.headline).foregroundStyle(TallyTheme.text)
+            Text("Add a place").font(.headline).foregroundStyle(VektorTheme.text)
             Text("Powered by Apple Maps — finds POIs, neighbourhoods, regions, and addresses.")
                 .font(.caption)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
         }
     }
 
     private var searchField: some View {
         HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").foregroundStyle(TallyTheme.muted)
+            Image(systemName: "magnifyingglass").foregroundStyle(VektorTheme.muted)
             TextField("Try “Uluwatu” or “Tokyo” or “3 rue de Rivoli”",
                       text: $model.query)
                 .textFieldStyle(.plain)
@@ -677,7 +677,7 @@ struct PlaceSearchSheet: View {
                     focused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                 }
                 .buttonStyle(.plain)
                 .help("Clear search")
@@ -685,7 +685,7 @@ struct PlaceSearchSheet: View {
             }
         }
         .padding(8)
-        .background(TallyTheme.codeSurface)
+        .background(VektorTheme.codeSurface)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
@@ -693,7 +693,7 @@ struct PlaceSearchSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Try")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             FlowLayout(spacing: 8) {
                 ForEach(examples, id: \.self) { example in
                     Button {
@@ -703,8 +703,8 @@ struct PlaceSearchSheet: View {
                             .font(.caption)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .background(TallyTheme.surface)
-                            .foregroundStyle(TallyTheme.text)
+                            .background(VektorTheme.surface)
+                            .foregroundStyle(VektorTheme.text)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -723,24 +723,24 @@ struct PlaceSearchSheet: View {
                     } label: {
                         HStack(alignment: .center, spacing: 10) {
                             Image(systemName: iconFor(c))
-                                .foregroundStyle(TallyTheme.accent)
+                                .foregroundStyle(VektorTheme.accent)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(c.title)
-                                    .foregroundStyle(TallyTheme.text)
+                                    .foregroundStyle(VektorTheme.text)
                                 if !c.subtitle.isEmpty {
                                     Text(c.subtitle)
                                         .font(.caption)
-                                        .foregroundStyle(TallyTheme.muted)
+                                        .foregroundStyle(VektorTheme.muted)
                                 }
                             }
                             Spacer()
                             Image(systemName: "arrow.up.right")
                                 .font(.caption)
-                                .foregroundStyle(TallyTheme.muted)
+                                .foregroundStyle(VektorTheme.muted)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(TallyTheme.surface)
+                        .background(VektorTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                         .contentShape(Rectangle())
                     }
@@ -754,10 +754,10 @@ struct PlaceSearchSheet: View {
     private func errorRow(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(TallyTheme.statusCaution)
+                .foregroundStyle(VektorTheme.statusCaution)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Search failed")
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -961,11 +961,11 @@ struct CalendarConfirmSheet: View {
     let onConfirm: (CalendarSaveOptions) -> Void
     let onCancel: () -> Void
 
-    @AppStorage("tally.calendar.lastTitle")      private var lastTitle: String = "Sync"
-    @AppStorage("tally.calendar.lastDuration")   private var lastDuration: Int = 60
-    @AppStorage("tally.calendar.lastAlarm")      private var lastAlarm: Int = 10
-    @AppStorage("tally.calendar.lastCalendarID") private var lastCalendarID: String = ""
-    @AppStorage("tally.calendar.openAfterSave")  private var openAfterSave: Bool = false
+    @AppStorage("vektor.calendar.lastTitle")      private var lastTitle: String = "Sync"
+    @AppStorage("vektor.calendar.lastDuration")   private var lastDuration: Int = 60
+    @AppStorage("vektor.calendar.lastAlarm")      private var lastAlarm: Int = 10
+    @AppStorage("vektor.calendar.lastCalendarID") private var lastCalendarID: String = ""
+    @AppStorage("vektor.calendar.openAfterSave")  private var openAfterSave: Bool = false
 
     @State private var title: String = ""
     @State private var duration: Int = 60
@@ -1026,7 +1026,7 @@ struct CalendarConfirmSheet: View {
                    isOn: $openAfterSave)
                 .toggleStyle(.checkbox)
                 .font(.caption)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
 
             if permissionDenied {
                 permissionRow
@@ -1052,10 +1052,10 @@ struct CalendarConfirmSheet: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Save meeting to Calendar")
                 .font(.headline)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
             Text("Adds a fully-formed event with title, duration, alert, and the cross-timezone note.")
                 .font(.caption)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
         }
     }
 
@@ -1077,12 +1077,12 @@ struct CalendarConfirmSheet: View {
                     ProgressView().controlSize(.small)
                     Text("Loading calendars…")
                         .font(.caption)
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                 }
             } else if calendars.isEmpty {
                 Text("System default")
                     .font(.caption)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             } else {
                 Picker("", selection: $selectedCalendarID) {
                     ForEach(calendars, id: \.calendarIdentifier) { cal in
@@ -1121,14 +1121,14 @@ struct CalendarConfirmSheet: View {
                     HStack(spacing: 6) {
                         Text(row.name)
                             .frame(width: 110, alignment: .leading)
-                            .foregroundStyle(TallyTheme.muted)
+                            .foregroundStyle(VektorTheme.muted)
                         Text(row.line)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(TallyTheme.text)
+                            .foregroundStyle(VektorTheme.text)
                         if let delta = row.delta {
                             Text(delta)
                                 .font(.caption2)
-                                .foregroundStyle(TallyTheme.accent)
+                                .foregroundStyle(VektorTheme.accent)
                         }
                     }
                 }
@@ -1144,7 +1144,7 @@ struct CalendarConfirmSheet: View {
                     TextField("", value: $duration, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 70)
-                    Text("min").foregroundStyle(TallyTheme.muted)
+                    Text("min").foregroundStyle(VektorTheme.muted)
                     Button("Use preset") { customDuration = false }
                         .buttonStyle(.borderless)
                         .font(.caption)
@@ -1199,13 +1199,13 @@ struct CalendarConfirmSheet: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Notes (auto-filled)")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Text(SchedulingSnippet.format(cities, at: startsAt))
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(TallyTheme.codeSurface)
+                .background(VektorTheme.codeSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
@@ -1222,17 +1222,17 @@ struct CalendarConfirmSheet: View {
     private var permissionRow: some View {
         HStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(TallyTheme.statusCaution)
+                .foregroundStyle(VektorTheme.statusCaution)
             Text("Calendar access denied — enable Vektor in System Settings → Privacy → Calendars.")
                 .font(.caption)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
         }
     }
 
     private func label(_ s: String) -> some View {
         Text(s)
             .frame(width: 72, alignment: .leading)
-            .foregroundStyle(TallyTheme.muted)
+            .foregroundStyle(VektorTheme.muted)
     }
 
     // MARK: - Data

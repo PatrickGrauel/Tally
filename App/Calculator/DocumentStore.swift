@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A single Vektor document — multi-line text whose first non-empty line acts
 /// as the title. Persisted as a list in UserDefaults.
-struct TallyDocument: Identifiable, Codable, Equatable {
+struct VektorDocument: Identifiable, Codable, Equatable {
     var id: UUID
     var content: String
     var updatedAt: Date
@@ -64,15 +64,15 @@ struct TallyDocument: Identifiable, Codable, Equatable {
 
 @MainActor
 final class DocumentStore: ObservableObject {
-    @Published var documents: [TallyDocument]
+    @Published var documents: [VektorDocument]
     @Published var selectedID: UUID
 
-    private static let storageKey = "tally.documents.v1"
-    private static let lastSelectedKey = "tally.documents.lastSelected"
+    private static let storageKey = "vektor.documents.v1"
+    private static let lastSelectedKey = "vektor.documents.lastSelected"
 
     init() {
         let loaded = Self.load()
-        var initial: [TallyDocument]
+        var initial: [VektorDocument]
         if loaded.isEmpty {
             // Seed first launch with a welcoming hub doc + eight
             // topic-focused docs it links to via `@references`. The
@@ -88,7 +88,7 @@ final class DocumentStore: ObservableObject {
         // file, future migration that allows zero docs), seed a fresh one
         // so the rest of the store can rely on at least one document.
         if initial.isEmpty {
-            initial = [TallyDocument(content: "")]
+            initial = [VektorDocument(content: "")]
         }
         self.documents = initial
 
@@ -109,7 +109,7 @@ final class DocumentStore: ObservableObject {
 
     // MARK: - Selection
 
-    var selected: TallyDocument {
+    var selected: VektorDocument {
         get { documents.first(where: { $0.id == selectedID }) ?? documents[0] }
         set {
             guard let idx = documents.firstIndex(where: { $0.id == newValue.id }) else { return }
@@ -134,8 +134,8 @@ final class DocumentStore: ObservableObject {
     }
 
     @discardableResult
-    func newDocument() -> TallyDocument {
-        let doc = TallyDocument(content: "")
+    func newDocument() -> VektorDocument {
+        let doc = VektorDocument(content: "")
         documents.insert(doc, at: 0)
         selectedID = doc.id
         UserDefaults.standard.set(doc.id.uuidString, forKey: Self.lastSelectedKey)
@@ -153,7 +153,7 @@ final class DocumentStore: ObservableObject {
         persist()
     }
 
-    func filtered(searching query: String) -> [TallyDocument] {
+    func filtered(searching query: String) -> [VektorDocument] {
         let q = query.trimmingCharacters(in: .whitespaces)
         let base = sortedForListing(documents)
         guard !q.isEmpty else { return base }
@@ -163,7 +163,7 @@ final class DocumentStore: ObservableObject {
     /// Pins-first sort. Inside each group the most-recently-updated
     /// document floats to the top — matches Numi's "what did I
     /// touch last?" mental model.
-    private func sortedForListing(_ list: [TallyDocument]) -> [TallyDocument] {
+    private func sortedForListing(_ list: [VektorDocument]) -> [VektorDocument] {
         list.sorted { a, b in
             if a.isPinned != b.isPinned { return a.isPinned && !b.isPinned }
             return a.updatedAt > b.updatedAt
@@ -184,7 +184,7 @@ final class DocumentStore: ObservableObject {
     /// Resolve a slug to a document. Used by `@reference` clicks in
     /// the calculator editor. Most-recently-modified wins when more
     /// than one document shares the same slug.
-    func findBySlug(_ slug: String) -> TallyDocument? {
+    func findBySlug(_ slug: String) -> VektorDocument? {
         let q = slug.lowercased()
         return documents
             .filter { $0.slug == q }
@@ -219,9 +219,9 @@ final class DocumentStore: ObservableObject {
         }
     }
 
-    private static func load() -> [TallyDocument] {
+    private static func load() -> [VektorDocument] {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([TallyDocument].self, from: data)
+              let decoded = try? JSONDecoder().decode([VektorDocument].self, from: data)
         else { return [] }
         return decoded
     }
@@ -242,7 +242,7 @@ final class DocumentStore: ObservableObject {
     /// Welcome is pinned so it stays at the top of the list. The
     /// linked docs aren't pinned — once the user has explored, they
     /// fall to where their `updatedAt` puts them.
-    private static func welcomePackage() -> [TallyDocument] {
+    private static func welcomePackage() -> [VektorDocument] {
         // Insert order matters for the sidebar list — newest first
         // is the default sort, so build in reverse-chronological
         // order with the welcome doc *last* (most recent → top).
@@ -251,7 +251,7 @@ final class DocumentStore: ObservableObject {
             now.addingTimeInterval(offsetSeconds)
         }
 
-        let math = TallyDocument(content: """
+        let math = VektorDocument(content: """
         # Math
         // Arithmetic, variables, and the "prev" trick.
 
@@ -278,7 +278,7 @@ final class DocumentStore: ObservableObject {
         // Try @units, or jump back to @welcome.
         """, updatedAt: at(-80))
 
-        let units = TallyDocument(content: """
+        let units = VektorDocument(content: """
         # Units
         // Type a number + a unit, then "to" or "in" + the target unit.
         // Vektor handles everything from kitchens to cockpits.
@@ -307,7 +307,7 @@ final class DocumentStore: ObservableObject {
         // or @aviation if knots and inHg are your daily bread.
         """, updatedAt: at(-70))
 
-        let money = TallyDocument(content: """
+        let money = VektorDocument(content: """
         # Money
         // Live rates fetched quietly in the background. No clicks,
         // no refresh buttons. FX from the ECB, crypto from public
@@ -338,7 +338,7 @@ final class DocumentStore: ObservableObject {
         // Back to @welcome.
         """, updatedAt: at(-60))
 
-        let time = TallyDocument(content: """
+        let time = VektorDocument(content: """
         # Time
         // For people in the wrong hemispheres, on the wrong calendars,
         // or both.
@@ -360,7 +360,7 @@ final class DocumentStore: ObservableObject {
         // Date math: @dates. Pilot stuff: @aviation. Back to @welcome.
         """, updatedAt: at(-50))
 
-        let dates = TallyDocument(content: """
+        let dates = VektorDocument(content: """
         # Dates
         // For procrastinators, parents, and project managers.
 
@@ -383,7 +383,7 @@ final class DocumentStore: ObservableObject {
         // Time-zone math: @time. Money: @money. Back: @welcome.
         """, updatedAt: at(-40))
 
-        let aviation = TallyDocument(content: """
+        let aviation = VektorDocument(content: """
         # Aviation
         // ICAO and IATA codes both work. Multiple stations on one
         // line is supported: METAR EDDM EDMO LOWS.
@@ -412,7 +412,7 @@ final class DocumentStore: ObservableObject {
         // Back to @welcome. Or see @stocks for the investing pane.
         """, updatedAt: at(-30))
 
-        let stocks = TallyDocument(content: """
+        let stocks = VektorDocument(content: """
         # Stocks
         // Two flavours: a single price lookup right here in the
         // calculator, and a full Buffett-style scorecard in the
@@ -440,7 +440,7 @@ final class DocumentStore: ObservableObject {
         // Tips for everything else: @tips. Back to @welcome.
         """, updatedAt: at(-20))
 
-        let tips = TallyDocument(content: """
+        let tips = VektorDocument(content: """
         # Tips
         // The shortcuts and small touches that make Vektor pleasant.
 
@@ -481,7 +481,7 @@ final class DocumentStore: ObservableObject {
         // Welcome lives last so it lands at the top of the list and
         // is also the first thing the user sees. Pinned so it stays
         // there until they explicitly unpin.
-        let welcome = TallyDocument(content: """
+        let welcome = VektorDocument(content: """
         # Welcome to Vektor
         // A calculator that thinks too much. It does the boring
         // math. It also does units, currencies, time zones, dates,

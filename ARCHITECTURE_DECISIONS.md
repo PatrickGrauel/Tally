@@ -17,7 +17,7 @@ ADRs are listed chronologically by adoption.
 
 **Context.** Most Vektor users won't analyse stocks. The Stocks pane requires a third-party API key, hits external services, and consumes a daily call budget. Users who don't want it shouldn't be forced to deal with its presence in the pane menu.
 
-**Decision.** The Stocks pane is gated behind `tally.panes.stocks` in UserDefaults, default `false`. Enabling it requires a deliberate toggle in Settings → Tools. The Aviation and Finance panes default `true` because they don't require external credentials.
+**Decision.** The Stocks pane is gated behind `vektor.panes.stocks` in UserDefaults, default `false`. Enabling it requires a deliberate toggle in Settings → Tools. The Aviation and Finance panes default `true` because they don't require external credentials.
 
 **Consequences.**
 - New users see a clean three-pane menu (Calculator / Timezone / [their enabled tools]) without an empty Stocks pane staring at them.
@@ -102,7 +102,7 @@ ADRs are listed chronologically by adoption.
 
 **Consequences.**
 - The "added complexity for hypothetical future requirements" critique applies — but the cost is one array wrapper, and the foreseeable feature (compare) is concrete enough that it's not speculative.
-- The position-based color palette (slot 0 → accent, slot 1 → muted blue, slot 2 → muted green) is decided up-front via `TallyTheme.chartLine2/3`, so the radar and per-axis chart agree on which company is which color.
+- The position-based color palette (slot 0 → accent, slot 1 → muted blue, slot 2 → muted green) is decided up-front via `VektorTheme.chartLine2/3`, so the radar and per-axis chart agree on which company is which color.
 - Compare mode itself becomes mostly "add an 'Add company' button, plumb N tickers through `analyse()`, pass N slices to drill-down."
 
 ---
@@ -202,7 +202,7 @@ The loop is safe because attribute changes (paragraph styles) don't trigger `tex
 
 **Context.** The Stocks pane needs an FMP API key. Other potential modules (FX premium tier via OpenExchangeRates, anything else paid) will follow the same pattern. We need a storage and transmission policy.
 
-**Decision.** API keys live in UserDefaults (per-app sandbox container, `~/Library/Containers/app.tally.Tally/`). They're transmitted only to the specific third-party endpoint that requires them, as a query parameter on the request. Vektor does not send them anywhere else — no telemetry, no sync, no cloud backup. The manage popover and README both state this explicitly: *"Your key stays on this Mac. Vektor only sends it to financialmodelingprep.com when you analyse a ticker."*
+**Decision.** API keys live in UserDefaults (per-app sandbox container, `~/Library/Containers/app.vektor.Vektor/`). They're transmitted only to the specific third-party endpoint that requires them, as a query parameter on the request. Vektor does not send them anywhere else — no telemetry, no sync, no cloud backup. The manage popover and README both state this explicitly: *"Your key stays on this Mac. Vektor only sends it to financialmodelingprep.com when you analyse a ticker."*
 
 **Consequences.**
 - No iCloud sync of keys — the user pastes once per Mac.
@@ -289,7 +289,7 @@ The bulk METAR fetch (`metarsInBBox(...)`) only fires below the 25° span cutoff
 
 **Context.** math.js looks up identifiers via property access on the eval scope. By default, `Total_price` and `total_price` are two distinct keys in the scope object — the user writes `Total_price = 100`, then types `total_price + 50` and gets "Undefined symbol total_price". Users mix cases by accident often enough that this read as a bug, not a feature. The aviation user base in particular favours mixed-case identifiers (`Rent`, `Mortgage`, `Total_fuel`) and would re-reference the same value with whatever case felt natural per line.
 
-**Decision.** Wrap the eval scope in a JavaScript `Proxy` that lowercases string keys on every `get`, `set`, `has`, `deleteProperty`, `ownKeys`, and `getOwnPropertyDescriptor`. User-defined names route through the proxy; math.js's built-in symbols (`pi`, `e`, `sin`, `cos`, …) live in math.js's own symbol table and are unaffected. Implementation in `JS/entry.js` is a `makeScope()` helper used at startup and on `tally.resetScope()`.
+**Decision.** Wrap the eval scope in a JavaScript `Proxy` that lowercases string keys on every `get`, `set`, `has`, `deleteProperty`, `ownKeys`, and `getOwnPropertyDescriptor`. User-defined names route through the proxy; math.js's built-in symbols (`pi`, `e`, `sin`, `cos`, …) live in math.js's own symbol table and are unaffected. Implementation in `JS/entry.js` is a `makeScope()` helper used at startup and on `vektor.resetScope()`.
 
 **Consequences.**
 - Single point of normalisation. All scope access routes through the same trap, so no future caller can bypass it. `Total_price = 100; total_price` resolves to 100; `Total_price = 100; total_price = 42; Total_price` returns 42 (same slot, second write wins).

@@ -1,6 +1,6 @@
 import SwiftUI
-import TallyAviation
-import TallyEngine
+import VektorAviation
+import VektorEngine
 
 struct MetarView: View {
     @State private var icao: String = "KSFO"
@@ -95,7 +95,7 @@ struct MetarView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
         .onChange(of: icao) { _, newValue in scheduleFetch(newValue) }
         .onAppear {
             scheduleFetch(icao, immediate: true)
@@ -122,7 +122,7 @@ struct MetarView: View {
             .background(.thinMaterial)
             .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(TallyTheme.divider)
+                    .fill(VektorTheme.divider)
                     .frame(height: 0.5)
             }
     }
@@ -205,7 +205,7 @@ struct MetarView: View {
                     LabeledContent("Trend") {
                         Text(trend)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(TallyTheme.accent)
+                            .foregroundStyle(VektorTheme.accent)
                             .help("ICAO trend forecast valid for the next 2 hours")
                     }
                 }

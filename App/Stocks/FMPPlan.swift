@@ -43,8 +43,8 @@ enum FMPPlan: String, CaseIterable, Identifiable {
 
     /// Persistence keys — kept here so the actor and the views read the
     /// same names.
-    static let storageKey = "tally.stocks.fmpPlan"
-    static let customCapKey = "tally.stocks.fmpCustomCap"
+    static let storageKey = "vektor.stocks.fmpPlan"
+    static let customCapKey = "vektor.stocks.fmpCustomCap"
 
     /// Resolve the effective hard cap from UserDefaults.
     static func currentDailyCap(defaults: UserDefaults = .standard) -> Int {

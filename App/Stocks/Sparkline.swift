@@ -24,7 +24,7 @@ struct Sparkline: View {
                     ForEach(Array(trend.years.enumerated()), id: \.offset) { idx, y in
                         Text(yearTick(y))
                             .font(.system(size: 8, design: .monospaced))
-                            .foregroundStyle(TallyTheme.muted)
+                            .foregroundStyle(VektorTheme.muted)
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -90,10 +90,10 @@ struct Sparkline: View {
 
     private var tint: Color {
         switch tier {
-        case .strong: return TallyTheme.statusGood
-        case .mixed:  return TallyTheme.statusCaution
-        case .weak:   return TallyTheme.statusBad
-        case .na:     return TallyTheme.muted
+        case .strong: return VektorTheme.statusGood
+        case .mixed:  return VektorTheme.statusCaution
+        case .weak:   return VektorTheme.statusBad
+        case .na:     return VektorTheme.muted
         }
     }
 
@@ -102,9 +102,9 @@ struct Sparkline: View {
     /// sliding still earns the red one.
     private var chipColour: Color {
         switch trend.direction {
-        case .improving:    return TallyTheme.statusGood
-        case .stable:       return TallyTheme.muted
-        case .deteriorating: return TallyTheme.statusBad
+        case .improving:    return VektorTheme.statusGood
+        case .stable:       return VektorTheme.muted
+        case .deteriorating: return VektorTheme.statusBad
         }
     }
 

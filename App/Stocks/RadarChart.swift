@@ -17,10 +17,10 @@ struct RadarChart: View {
             let centre = CGPoint(x: size.width / 2, y: size.height / 2)
             let radius = min(size.width, size.height) / 2 - 36
             let n = max(axes.count, 1)
-            let axisColour = TallyTheme.divider
-            let labelColour = TallyTheme.muted
-            let fillColour = TallyTheme.accent.opacity(0.25)
-            let strokeColour = TallyTheme.accent
+            let axisColour = VektorTheme.divider
+            let labelColour = VektorTheme.muted
+            let fillColour = VektorTheme.accent.opacity(0.25)
+            let strokeColour = VektorTheme.accent
 
             // 1. Gridlines at 2/4/6/8/10
             for step in [2, 4, 6, 8, 10] {

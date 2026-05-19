@@ -13,11 +13,11 @@ extension View {
 
 private struct ThemedSheetModifier: ViewModifier {
     let scheme: ColorScheme?
-    @AppStorage("tally.appearance") private var appearance: String = "system"
+    @AppStorage("vektor.appearance") private var appearance: String = "system"
 
     func body(content: Content) -> some View {
         content
-            .background(TallyTheme.background.ignoresSafeArea())
+            .background(VektorTheme.background.ignoresSafeArea())
             .preferredColorScheme(resolved)
     }
 

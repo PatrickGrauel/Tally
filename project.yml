@@ -1,6 +1,6 @@
 name: Vektor
 options:
-  bundleIdPrefix: app.tally
+  bundleIdPrefix: app.vektor
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -18,10 +18,10 @@ settings:
     DEAD_CODE_STRIPPING: YES
 
 packages:
-  TallyEngine:
-    path: Packages/TallyEngine
-  TallyAviation:
-    path: Packages/TallyAviation
+  VektorEngine:
+    path: Packages/VektorEngine
+  VektorAviation:
+    path: Packages/VektorAviation
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "6.29.0"
@@ -39,8 +39,8 @@ targets:
       - path: App/Resources/Assets.xcassets
       - path: App/Resources/PrivacyInfo.xcprivacy
     dependencies:
-      - package: TallyEngine
-      - package: TallyAviation
+      - package: VektorEngine
+      - package: VektorAviation
       - package: GRDB
         product: GRDB
     info:
@@ -61,7 +61,7 @@ targets:
         com.apple.security.network.client: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.tally.Tally
+        PRODUCT_BUNDLE_IDENTIFIER: app.vektor.Vektor
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: App/Resources/Vektor.entitlements

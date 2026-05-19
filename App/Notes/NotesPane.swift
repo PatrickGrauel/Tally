@@ -28,7 +28,7 @@ struct NotesPane: View {
             editorColumn
                 .frame(minWidth: 360)
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
         // The new-note button lives in the chrome (see ContentView)
         // instead of `.toolbar` here — the custom chrome and a SwiftUI
         // window-toolbar fight for the title-bar zone and the chrome
@@ -73,13 +73,13 @@ struct NotesPane: View {
             VStack(spacing: 8) {
                 Image(systemName: "note.text")
                     .font(.system(size: 32))
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                 Text("Select a note, or press ⌘N to create one.")
                     .font(.callout)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(TallyTheme.background)
+            .background(VektorTheme.background)
         }
     }
 

@@ -5,24 +5,24 @@ struct SettingsView: View {
     @EnvironmentObject var model: AppModel
 
     // General
-    @AppStorage("tally.precision")  private var precision: Int = 2
-    @AppStorage("tally.appearance") private var appearance: String = "system"
-    @AppStorage("tally.menuBarOnly") private var menuBarOnly: Bool = false
+    @AppStorage("vektor.precision")  private var precision: Int = 2
+    @AppStorage("vektor.appearance") private var appearance: String = "system"
+    @AppStorage("vektor.menuBarOnly") private var menuBarOnly: Bool = false
     @State private var launchAtLogin: Bool = LaunchAtLogin.isEnabled
-    @AppStorage("tally.alwaysOnTop") private var alwaysOnTop: Bool = false
+    @AppStorage("vektor.alwaysOnTop") private var alwaysOnTop: Bool = false
     @State private var showDocs: Bool = false
 
     // Units (preferences shared across all panes that care)
-    @AppStorage("tally.aviation.speedUnit")    private var speedUnit: String = "kt"
-    @AppStorage("tally.aviation.altitudeUnit") private var altitudeUnit: String = "ft"
-    @AppStorage("tally.aviation.pressureUnit") private var pressureUnit: String = "hPa"
+    @AppStorage("vektor.aviation.speedUnit")    private var speedUnit: String = "kt"
+    @AppStorage("vektor.aviation.altitudeUnit") private var altitudeUnit: String = "ft"
+    @AppStorage("vektor.aviation.pressureUnit") private var pressureUnit: String = "hPa"
 
 
     // Stocks visibility — kept here only to gate the Settings → Stocks
     // section below (the API-key / plan / cap surface, which makes
     // sense only when the pane is enabled). Pane-visibility toggles
     // themselves live in the pane menu's "Manage panes…" popover.
-    @AppStorage("tally.panes.stocks") private var enableStocks = false
+    @AppStorage("vektor.panes.stocks") private var enableStocks = false
 
     // Stocks management UI lives in StocksManageView (shared with the
     // pane's footer popover). The bindings flow into UserDefaults so
@@ -112,7 +112,7 @@ struct SettingsView: View {
                         Label("Documentation", systemImage: "book")
                     }
                     Button("Send feedback") {
-                        if let url = URL(string: "mailto:feedback@tally.app?subject=Vektor%20feedback") {
+                        if let url = URL(string: "mailto:feedback@vektor.app?subject=Vektor%20feedback") {
                             NSWorkspace.shared.open(url)
                         }
                     }
@@ -125,7 +125,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .frame(width: 480, height: 540)
-        // `themedSheet` applies TallyTheme.background AND the user's
+        // `themedSheet` applies VektorTheme.background AND the user's
         // light/dark preference. Without it the Settings window ignores
         // the Appearance picker the user just changed.
         .themedSheet()

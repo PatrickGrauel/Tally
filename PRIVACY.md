@@ -13,7 +13,7 @@ Vektor is a native macOS calculator. It is operated by Patrick Grauel, an indivi
 
 ## Data that stays on your Mac
 
-The following data is stored locally inside Vektor's macOS app sandbox container (`~/Library/Containers/app.tally.Tally/`). None of it is sent off-device by Vektor:
+The following data is stored locally inside Vektor's macOS app sandbox container (`~/Library/Containers/app.vektor.Vektor/`). None of it is sent off-device by Vektor:
 
 - **Your calculation documents.** The sheets you create in the Calculator pane — math, notes, variables, METAR queries, everything. Stored in `UserDefaults`.
 - **Your settings.** Appearance preference, enabled tool panes, calculator preferences, menu-bar-only mode. Stored in `UserDefaults`.
@@ -22,7 +22,7 @@ The following data is stored locally inside Vektor's macOS app sandbox container
 
 API keys are optional. If you never paste one, no key is stored and Keychain is never touched. The calculator, units, currencies (via free anonymous rates), METAR/TAF/ATIS, timezones, and aviation tools all work without any key.
 
-You can clear all Vektor data at any time by deleting the app's sandbox container (`~/Library/Containers/app.tally.Tally/`) and removing any Keychain entries with service identifier `Vektor` via Keychain Access.app.
+You can clear all Vektor data at any time by deleting the app's sandbox container (`~/Library/Containers/app.vektor.Vektor/`) and removing any Keychain entries with service identifier `Vektor` via Keychain Access.app.
 
 ## Third-party services Vektor talks to
 
@@ -51,7 +51,7 @@ Vektor never sends your API keys to any service other than the one that issued t
 
 ## Data retention
 
-- On your Mac: data lives as long as you keep Vektor installed. Deleting the app removes the sandbox container (you can also delete `~/Library/Containers/app.tally.Tally/` directly).
+- On your Mac: data lives as long as you keep Vektor installed. Deleting the app removes the sandbox container (you can also delete `~/Library/Containers/app.vektor.Vektor/` directly).
 - On third-party services: each service decides its own retention. None of them receive any Vektor-specific identifier; they only see standard request metadata (IP address, user-agent) for the duration of the request.
 
 ## Your choices

@@ -1,6 +1,6 @@
 import SwiftUI
 import AppKit
-import TallyEngine
+import VektorEngine
 
 /// Single-scroll editor + gutter, replacing the old HSplitView layout.
 ///
@@ -32,7 +32,7 @@ struct UnifiedEditor: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = true
-        scroll.backgroundColor = NSColor(TallyTheme.background)
+        scroll.backgroundColor = NSColor(VektorTheme.background)
         scroll.autohidesScrollers = true
         scroll.borderType = .noBorder
 
@@ -53,9 +53,9 @@ struct UnifiedEditor: NSViewRepresentable {
         tv.isSelectable = true
         tv.allowsUndo = true
         tv.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-        tv.textColor = NSColor(TallyTheme.text)
-        tv.insertionPointColor = NSColor(TallyTheme.accent)
-        tv.backgroundColor = NSColor(TallyTheme.background)
+        tv.textColor = NSColor(VektorTheme.text)
+        tv.insertionPointColor = NSColor(VektorTheme.accent)
+        tv.backgroundColor = NSColor(VektorTheme.background)
         tv.drawsBackground = true
         tv.delegate = context.coordinator
         tv.textContainerInset = NSSize(width: 18, height: 14)
@@ -76,7 +76,7 @@ struct UnifiedEditor: NSViewRepresentable {
         tv.defaultParagraphStyle = paragraph
         tv.typingAttributes = [
             .font: tv.font!,
-            .foregroundColor: NSColor(TallyTheme.text),
+            .foregroundColor: NSColor(VektorTheme.text),
             .paragraphStyle: paragraph,
         ]
         tv.string = text
@@ -213,9 +213,9 @@ final class UnifiedCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDeleg
         let safeLen = min(max(0, range.length), total - safeLoc)
         let scope = fullText.lineRange(for: NSRange(location: safeLoc, length: safeLen))
 
-        let defaultColor = NSColor(TallyTheme.text)
-        let headerColor  = NSColor(TallyTheme.accent)
-        let commentColor = NSColor(TallyTheme.muted)
+        let defaultColor = NSColor(VektorTheme.text)
+        let headerColor  = NSColor(VektorTheme.accent)
+        let commentColor = NSColor(VektorTheme.muted)
         var loc = scope.location
         let end = scope.location + scope.length
         while loc < end {
@@ -270,7 +270,7 @@ final class UnifiedCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDeleg
                                    length: m.range.length)
             let slug = ns.substring(with: m.range).lowercased().dropFirst()
             storage.addAttribute(.foregroundColor,
-                                 value: NSColor(TallyTheme.accent),
+                                 value: NSColor(VektorTheme.accent),
                                  range: absRange)
             storage.addAttribute(.underlineStyle,
                                  value: NSUnderlineStyle.single.rawValue,
@@ -526,7 +526,7 @@ final class ColumnContainer: NSView {
 
 /// A 1pt visible line with an 11pt invisible hit area. Hover changes
 /// the cursor to .resizeLeftRight; click-drag emits horizontal deltas
-/// to the container. The visible line is `TallyTheme.muted` so it
+/// to the container. The visible line is `VektorTheme.muted` so it
 /// reads as a real separator without being loud — brighter on hover.
 final class DividerStrip: NSView {
     /// Fired during drag with each horizontal delta.
@@ -545,7 +545,7 @@ final class DividerStrip: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         // 1pt vertical hairline centred in the hit zone. A bit brighter
-        // than TallyTheme.divider so the user can find the drag handle.
+        // than VektorTheme.divider so the user can find the drag handle.
         let line = NSRect(
             x: (bounds.width - 1) / 2,
             y: 0,
@@ -556,8 +556,8 @@ final class DividerStrip: NSView {
         // a colour-tint, so the divider reads as chrome, not an
         // active element.
         let colour = isHovering
-            ? NSColor(TallyTheme.muted)
-            : NSColor(TallyTheme.muted).withAlphaComponent(0.45)
+            ? NSColor(VektorTheme.muted)
+            : NSColor(VektorTheme.muted).withAlphaComponent(0.45)
         colour.setFill()
         line.fill()
     }
@@ -701,7 +701,7 @@ final class GutterView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor(TallyTheme.background).setFill()
+        NSColor(VektorTheme.background).setFill()
         bounds.fill()
 
         let textWidth = max(0, bounds.width - horizontalPadding * 2)

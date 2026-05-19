@@ -7,7 +7,7 @@ import SwiftUI
 ///
 /// Visual pattern follows `Sparkline.directionChip` (line 73 of
 /// Sparkline.swift): a small capsule with `colour.opacity(0.12)`
-/// background and the matching `TallyTheme.status*` foreground. The
+/// background and the matching `VektorTheme.status*` foreground. The
 /// dual-channel rule (icon + colour) is preserved on the change and
 /// fair-value badges so red-green deficiency users still get the signal.
 
@@ -38,9 +38,9 @@ struct ChangeBadge: View {
         return "arrow.right"
     }
     private var colour: Color {
-        if percent > 0.0005   { return TallyTheme.statusGood }
-        if percent < -0.0005  { return TallyTheme.statusBad }
-        return TallyTheme.muted
+        if percent > 0.0005   { return VektorTheme.statusGood }
+        if percent < -0.0005  { return VektorTheme.statusBad }
+        return VektorTheme.muted
     }
     private var formatted: String {
         let pct = percent * 100
@@ -60,15 +60,15 @@ struct IdentifierChip: View {
         HStack(spacing: 3) {
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Text(value)
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .textSelection(.enabled)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .background(TallyTheme.codeSurface)
+        .background(VektorTheme.codeSurface)
         .clipShape(Capsule())
         .accessibilityLabel("\(label) \(value)")
     }
@@ -110,10 +110,10 @@ struct FairValueBadge: View {
     }
     private var colour: Color {
         switch verdict {
-        case .underpriced: return TallyTheme.statusGood
-        case .fair:        return TallyTheme.muted
-        case .overpriced:  return TallyTheme.statusBad
-        case .unknown:     return TallyTheme.muted
+        case .underpriced: return VektorTheme.statusGood
+        case .fair:        return VektorTheme.muted
+        case .overpriced:  return VektorTheme.statusBad
+        case .unknown:     return VektorTheme.muted
         }
     }
     private var label: String {

@@ -4,11 +4,11 @@ import SwiftUI
 /// just to keep up?" Two-way conversion plus the break-even nominal
 /// return needed for a chosen real return.
 struct InflationForm: View {
-    @AppStorage("tally.finance.infl.amount")     private var amount: Double = 10000
-    @AppStorage("tally.finance.infl.years")      private var years: Double = 10
-    @AppStorage("tally.finance.infl.rate")       private var inflationRate: Double = 2.5
-    @AppStorage("tally.finance.infl.realReturn") private var realReturn: Double = 1.5
-    @AppStorage("tally.finance.infl.curr")       private var currency: String = "EUR"
+    @AppStorage("vektor.finance.infl.amount")     private var amount: Double = 10000
+    @AppStorage("vektor.finance.infl.years")      private var years: Double = 10
+    @AppStorage("vektor.finance.infl.rate")       private var inflationRate: Double = 2.5
+    @AppStorage("vektor.finance.infl.realReturn") private var realReturn: Double = 1.5
+    @AppStorage("vektor.finance.infl.curr")       private var currency: String = "EUR"
 
     var body: some View {
         Form {
@@ -18,7 +18,7 @@ struct InflationForm: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     private var futureValueSection: some View {

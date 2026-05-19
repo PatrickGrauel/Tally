@@ -54,13 +54,13 @@ function makeScope() {
   });
 }
 
-globalThis.tally = {
+globalThis.vektor = {
   /** Variables declared in the document survive across lines via this scope. */
   scope: makeScope(),
 
   /** Reset before re-evaluating the whole document. */
   resetScope() {
-    globalThis.tally.scope = makeScope();
+    globalThis.vektor.scope = makeScope();
   },
 
   /**
@@ -395,7 +395,7 @@ globalThis.tally = {
    * variable assignments stick across lines (`a = 12; a * b`).
    */
   evalLine(expr) {
-    return math.evaluate(expr, globalThis.tally.scope);
+    return math.evaluate(expr, globalThis.vektor.scope);
   },
 };
 
@@ -403,8 +403,8 @@ globalThis.tally = {
 // `1.8h in hh:mm:ss` to `hms(1.8h)` and get a "01:48:00" string back.
 try {
   math.import({
-    hms: (v) => globalThis.tally.formatHMS(v, true),
-    hm:  (v) => globalThis.tally.formatHMS(v, false),
+    hms: (v) => globalThis.vektor.formatHMS(v, true),
+    hm:  (v) => globalThis.vektor.formatHMS(v, false),
   }, { override: true });
 } catch (e) { /* ignore */ }
 
@@ -597,5 +597,5 @@ try {
   }, { override: true });
 } catch (e) { /* ignore */ }
 
-globalThis.tally.initBaseCurrencies();
-globalThis.tally.initAviationUnits();
+globalThis.vektor.initBaseCurrencies();
+globalThis.vektor.initAviationUnits();

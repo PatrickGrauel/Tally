@@ -1,5 +1,5 @@
 import SwiftUI
-import TallyEngine
+import VektorEngine
 
 /// "Trip with three stops, here's what I need." Each destination has
 /// days + per-day budget in the local currency; the form sums them
@@ -32,7 +32,7 @@ typealias TravelTripStore = PersistentStore<TravelDestination>
 extension PersistentStore where T == TravelDestination {
     static func travel() -> TravelTripStore {
         TravelTripStore(
-            storageKey: "tally.finance.travel.v1",
+            storageKey: "vektor.finance.travel.v1",
             matches: { $0.id == $1.id }
         )
     }
@@ -40,9 +40,9 @@ extension PersistentStore where T == TravelDestination {
 
 struct TravelBudgetForm: View {
     @StateObject private var store = TravelTripStore.travel()
-    @AppStorage("tally.finance.travel.baseCurrency") private var baseCurrency: String = "EUR"
-    @AppStorage("tally.finance.travel.flightsCost") private var flightsCost: Double = 600
-    @AppStorage("tally.finance.travel.fxJSON") private var fxJSON: String = "{}"
+    @AppStorage("vektor.finance.travel.baseCurrency") private var baseCurrency: String = "EUR"
+    @AppStorage("vektor.finance.travel.flightsCost") private var flightsCost: Double = 600
+    @AppStorage("vektor.finance.travel.fxJSON") private var fxJSON: String = "{}"
 
     @State private var editing: TravelDestination?
     @State private var showAddSheet = false
@@ -72,7 +72,7 @@ struct TravelBudgetForm: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
         .sheet(item: $editing) { d in
             DestinationEditor(initial: d) { updated in
                 store.add(updated)
@@ -133,7 +133,7 @@ struct TravelBudgetForm: View {
                     TextField("", value: $flightsCost, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
-                    Text(baseCurrency).foregroundStyle(TallyTheme.muted)
+                    Text(baseCurrency).foregroundStyle(VektorTheme.muted)
                 }
             }
             HStack {
@@ -144,7 +144,7 @@ struct TravelBudgetForm: View {
                     Label("Add destination", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(TallyTheme.accent)
+                .tint(VektorTheme.accent)
             }
         }
     }
@@ -196,7 +196,7 @@ private struct DestinationRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(dest.name.isEmpty ? "(unnamed)" : dest.name)
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 Text("\(dest.days) days · \(String(format: "%.0f", dest.perDayLocal))/day \(dest.currency)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -205,7 +205,7 @@ private struct DestinationRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(String(format: "%.0f", inBase)) \(baseCurrency)")
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 Text("on the ground")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -254,7 +254,7 @@ private struct DestinationEditor: View {
                 Button("Save") { onSave(initial) }
                     .keyboardShortcut(.return)
                     .buttonStyle(.borderedProminent)
-                    .tint(TallyTheme.accent)
+                    .tint(VektorTheme.accent)
                     .disabled(initial.name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }

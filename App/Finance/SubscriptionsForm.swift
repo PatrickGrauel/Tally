@@ -1,5 +1,5 @@
 import SwiftUI
-import TallyEngine
+import VektorEngine
 
 /// One recurring subscription. The amount is in the named currency
 /// — the form converts to the user's base currency for the totals
@@ -55,7 +55,7 @@ typealias SubscriptionStore = PersistentStore<SavedSubscription>
 extension PersistentStore where T == SavedSubscription {
     static func subscriptions() -> SubscriptionStore {
         SubscriptionStore(
-            storageKey: "tally.finance.subscriptions.v1",
+            storageKey: "vektor.finance.subscriptions.v1",
             matches: { $0.id == $1.id }
         )
     }
@@ -63,8 +63,8 @@ extension PersistentStore where T == SavedSubscription {
 
 struct SubscriptionsForm: View {
     @StateObject private var store = SubscriptionStore.subscriptions()
-    @AppStorage("tally.finance.subs.baseCurrency") private var baseCurrency: String = "EUR"
-    @AppStorage("tally.finance.subs.fxJSON")       private var fxJSON: String = "{}"
+    @AppStorage("vektor.finance.subs.baseCurrency") private var baseCurrency: String = "EUR"
+    @AppStorage("vektor.finance.subs.fxJSON")       private var fxJSON: String = "{}"
     @State private var editing: SavedSubscription?
     @State private var showAddSheet = false
 
@@ -100,7 +100,7 @@ struct SubscriptionsForm: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
         .sheet(item: $editing) { sub in
             SubscriptionEditor(initial: sub) { updated in
                 store.add(updated)
@@ -168,7 +168,7 @@ struct SubscriptionsForm: View {
                     Label("Add subscription", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(TallyTheme.accent)
+                .tint(VektorTheme.accent)
             }
         }
     }
@@ -228,7 +228,7 @@ private struct SubscriptionRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(sub.name.isEmpty ? "(unnamed)" : sub.name)
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 Text("\(sub.period.label) · \(format(sub.amount)) \(sub.currency)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -237,7 +237,7 @@ private struct SubscriptionRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(format(monthlyInBase)) \(baseCurrency)/mo")
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 Text("\(format(monthlyInBase * 12)) \(baseCurrency)/yr")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -293,7 +293,7 @@ private struct SubscriptionEditor: View {
                 Button("Save") { onSave(initial) }
                     .keyboardShortcut(.return)
                     .buttonStyle(.borderedProminent)
-                    .tint(TallyTheme.accent)
+                    .tint(VektorTheme.accent)
                     .disabled(initial.name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }

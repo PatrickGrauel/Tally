@@ -1,10 +1,10 @@
 import SwiftUI
-import TallyAviation
+import VektorAviation
 
 struct TODTab: View {
-    @AppStorage("tally.e6b.tod.alt")    private var altToLose: Double = 10_000
-    @AppStorage("tally.e6b.tod.rate")   private var descentRate: Double = 500
-    @AppStorage("tally.e6b.tod.gs")     private var groundSpeed: Double = 120
+    @AppStorage("vektor.e6b.tod.alt")    private var altToLose: Double = 10_000
+    @AppStorage("vektor.e6b.tod.rate")   private var descentRate: Double = 500
+    @AppStorage("vektor.e6b.tod.gs")     private var groundSpeed: Double = 120
 
     var body: some View {
         Form {

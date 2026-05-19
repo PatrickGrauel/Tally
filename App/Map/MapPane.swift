@@ -1,7 +1,7 @@
 import SwiftUI
 import MapKit
-import TallyAviation
-import TallyEngine
+import VektorAviation
+import VektorEngine
 
 /// Interactive airport + METAR map. Renders OurAirports' large/medium/
 /// small airport pins colored by flight category (VFR / MVFR / IFR /
@@ -16,7 +16,7 @@ import TallyEngine
 /// 4. METAR bulk fetch only fires when the visible span is small
 ///    enough that the bbox endpoint returns a sane payload.
 struct MapPane: View {
-    @AppStorage("tally.aviation.disclaimerAccepted") private var disclaimerAccepted: Bool = false
+    @AppStorage("vektor.aviation.disclaimerAccepted") private var disclaimerAccepted: Bool = false
 
     var body: some View {
         Group {
@@ -26,7 +26,7 @@ struct MapPane: View {
                 AviationDisclaimerView { disclaimerAccepted = true }
             }
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 }
 
@@ -36,10 +36,10 @@ private struct MapPaneContent: View {
     /// Default to central Europe at country zoom — gives ~50 large hubs
     /// + their METARs on first paint without overwhelming the bbox call.
     /// Saved across launches so the user lands where they left off.
-    @AppStorage("tally.map.centerLat")   private var centerLat: Double = 50
-    @AppStorage("tally.map.centerLon")   private var centerLon: Double = 10
-    @AppStorage("tally.map.spanLat")     private var spanLat: Double = 12
-    @AppStorage("tally.map.spanLon")     private var spanLon: Double = 18
+    @AppStorage("vektor.map.centerLat")   private var centerLat: Double = 50
+    @AppStorage("vektor.map.centerLon")   private var centerLon: Double = 10
+    @AppStorage("vektor.map.spanLat")     private var spanLat: Double = 12
+    @AppStorage("vektor.map.spanLon")     private var spanLon: Double = 18
 
     @State private var camera: MapCameraPosition = .automatic
     @State private var region: MKCoordinateRegion?
@@ -140,7 +140,7 @@ private struct MapPaneContent: View {
             }
             Text(statusText)
                 .font(.caption2.monospacedDigit())
-                .foregroundStyle(TallyTheme.overlayText)
+                .foregroundStyle(VektorTheme.overlayText)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -158,7 +158,7 @@ private struct MapPaneContent: View {
             .background(.thinMaterial)
             .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(TallyTheme.divider)
+                    .fill(VektorTheme.divider)
                     .frame(height: 0.5)
             }
     }
@@ -199,11 +199,11 @@ private struct MapPaneContent: View {
 
     private func pinColour(for cat: MetarService.BBoxStation.FltCat) -> Color {
         switch cat {
-        case .vfr:     return TallyTheme.statusGood
-        case .mvfr:    return TallyTheme.chartLine2
-        case .ifr:     return TallyTheme.statusBad
-        case .lifr:    return TallyTheme.chartLine3
-        case .unknown: return TallyTheme.muted
+        case .vfr:     return VektorTheme.statusGood
+        case .mvfr:    return VektorTheme.chartLine2
+        case .ifr:     return VektorTheme.statusBad
+        case .lifr:    return VektorTheme.chartLine3
+        case .unknown: return VektorTheme.muted
         }
     }
 

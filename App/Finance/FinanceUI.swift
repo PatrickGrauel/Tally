@@ -19,11 +19,11 @@ struct MetricBox: View {
     enum Tone { case good, caution, bad, neutral, accent
         var color: Color {
             switch self {
-            case .good:     return TallyTheme.statusGood
-            case .caution:  return TallyTheme.statusCaution
-            case .bad:      return TallyTheme.statusBad
-            case .accent:   return TallyTheme.accent
-            case .neutral:  return TallyTheme.text
+            case .good:     return VektorTheme.statusGood
+            case .caution:  return VektorTheme.statusCaution
+            case .bad:      return VektorTheme.statusBad
+            case .accent:   return VektorTheme.accent
+            case .neutral:  return VektorTheme.text
             }
         }
     }
@@ -33,12 +33,12 @@ struct MetricBox: View {
             HStack {
                 Text(label)
                     .font(.caption2)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                 Spacer()
                 if let hint {
                     Text(hint)
                         .font(.caption2)
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                 }
             }
             Text(value)
@@ -49,7 +49,7 @@ struct MetricBox: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(TallyTheme.surface)
+        .background(VektorTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -75,12 +75,12 @@ struct LabelledSlider: View {
                 Slider(value: $value, in: range, step: step)
                 Text(String(format: format, value) + (unit.map { " \($0)" } ?? ""))
                     .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                     .frame(width: 90, alignment: .trailing)
             }
         } label: {
             Text(label)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
         }
     }
 }
@@ -94,7 +94,7 @@ struct FormSectionHeader: View {
     var body: some View {
         Text(title.uppercased())
             .font(.caption.weight(.semibold))
-            .foregroundStyle(TallyTheme.muted)
+            .foregroundStyle(VektorTheme.muted)
             .padding(.top, 4)
     }
 }

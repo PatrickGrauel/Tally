@@ -12,7 +12,7 @@ import Combine
 ///
 /// Usage mirrors `@AppStorage`:
 /// ```
-/// @KeychainStored("tally.stocks.fmpApiKey") private var apiKey: String = ""
+/// @KeychainStored("vektor.stocks.fmpApiKey") private var apiKey: String = ""
 /// ```
 @propertyWrapper
 struct KeychainStored: DynamicProperty {

@@ -1,6 +1,6 @@
 import SwiftUI
-import TallyAviation
-import TallyEngine
+import VektorAviation
+import VektorEngine
 
 /// Compact METAR summary card shown when the user clicks an airport pin
 /// on the map. Layout mirrors the `LEMD ADVISORY` mock — ICAO + city /
@@ -19,7 +19,7 @@ struct StationCard: View {
             header
 
             Rectangle()
-                .fill(TallyTheme.divider)
+                .fill(VektorTheme.divider)
                 .frame(height: 0.5)
 
             if let metar {
@@ -27,7 +27,7 @@ struct StationCard: View {
                 fields(metar: metar, parsed: parsed)
 
                 Rectangle()
-                    .fill(TallyTheme.divider)
+                    .fill(VektorTheme.divider)
                     .frame(height: 0.5)
 
                 Text(metar.raw)
@@ -42,7 +42,7 @@ struct StationCard: View {
             }
         }
         .padding(18)
-        .background(TallyTheme.surface)
+        .background(VektorTheme.surface)
     }
 
     // MARK: Header
@@ -88,11 +88,11 @@ struct StationCard: View {
 
     private func colour(for cat: MetarService.BBoxStation.FltCat) -> Color {
         switch cat {
-        case .vfr:     return TallyTheme.statusGood
-        case .mvfr:    return TallyTheme.chartLine2
-        case .ifr:     return TallyTheme.statusBad
-        case .lifr:    return TallyTheme.chartLine3
-        case .unknown: return TallyTheme.muted
+        case .vfr:     return VektorTheme.statusGood
+        case .mvfr:    return VektorTheme.chartLine2
+        case .ifr:     return VektorTheme.statusBad
+        case .lifr:    return VektorTheme.chartLine3
+        case .unknown: return VektorTheme.muted
         }
     }
 
@@ -117,7 +117,7 @@ struct StationCard: View {
             if let wind = parsed.wind {
                 row("WIND", value: windText(wind), accent: windAccent(wind))
                 if let gust = wind.gustKt {
-                    row("GUST", value: "G\(gust)", accent: TallyTheme.statusCaution)
+                    row("GUST", value: "G\(gust)", accent: VektorTheme.statusCaution)
                 }
             }
             if let v = parsed.visibility {
@@ -161,8 +161,8 @@ struct StationCard: View {
     private func windAccent(_ w: DecodedMetar.Wind) -> Color? {
         switch MetarDanger.severity(forWind: w) {
         case .ok:     return nil
-        case .warn:   return TallyTheme.statusCaution
-        case .danger: return TallyTheme.statusBad
+        case .warn:   return VektorTheme.statusCaution
+        case .danger: return VektorTheme.statusBad
         }
     }
 

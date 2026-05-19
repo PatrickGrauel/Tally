@@ -1,6 +1,6 @@
 import SwiftUI
 import AppKit
-import TallyEngine
+import VektorEngine
 import os
 
 struct CalculatorPane: View {
@@ -15,7 +15,7 @@ struct CalculatorPane: View {
     /// Width of the editor column inside the unified scroll surface.
     /// Persisted so the user's preferred split survives launches; the
     /// drag handle in the gutter divider writes back to this value.
-    @AppStorage("tally.calc.editorWidth") private var editorWidth: Double = 460
+    @AppStorage("vektor.calc.editorWidth") private var editorWidth: Double = 460
 
     /// Drives a periodic re-evaluation so live data (METAR/TAF freshness
     /// labels, current-time timezone results, FX rates) refreshes on its
@@ -53,7 +53,7 @@ struct CalculatorPane: View {
                 }
             }
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
         .onChange(of: documents.selectedID) { _, _ in evaluate() }
         .onChange(of: documents.selected.content) { _, _ in scheduleEvaluate() }
         .onAppear { evaluate() }
@@ -89,7 +89,7 @@ struct CalculatorPane: View {
 
     /// Chrome strip above the editor — `SHEET · <NAME>` in tracked small-caps
     /// with a hairline below. Title is inferred from the document's first
-    /// meaningful line (see `TallyDocument.title`); empty docs read as
+    /// meaningful line (see `VektorDocument.title`); empty docs read as
     /// "SCRATCH". Sans-serif on purpose so the chrome reads as a distinct
     /// layer from the monospaced editor content below.
     private var sheetHeader: some View {
@@ -104,12 +104,12 @@ struct CalculatorPane: View {
             }
             .font(.system(size: 10.5, weight: .medium))
             .tracking(1.6)
-            .foregroundStyle(TallyTheme.muted)
+            .foregroundStyle(VektorTheme.muted)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
 
             Rectangle()
-                .fill(TallyTheme.divider)
+                .fill(VektorTheme.divider)
                 .frame(height: 0.5)
         }
     }
@@ -122,7 +122,7 @@ struct CalculatorPane: View {
         } label: {
             Image(systemName: "gearshape")
                 .imageScale(.medium)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
                 .padding(8)
                 .contentShape(Rectangle())
         }
@@ -191,7 +191,7 @@ struct CalculatorPane: View {
                 lineAttr.addAttribute(.paragraphStyle, value: paragraph, range: lineRange)
                 if line.hasPrefix("expect RWY") {
                     lineAttr.addAttribute(.foregroundColor,
-                                          value: NSColor(TallyTheme.accent),
+                                          value: NSColor(VektorTheme.accent),
                                           range: lineRange)
                 } else {
                     lineAttr.addAttribute(.foregroundColor, value: baseColor, range: lineRange)
@@ -240,9 +240,9 @@ struct CalculatorPane: View {
         attr.addAttribute(.paragraphStyle, value: paragraph, range: range)
         let colour: NSColor
         switch a.tone {
-        case .fresh:    colour = NSColor(TallyTheme.muted)
-        case .stale:    colour = NSColor(TallyTheme.statusCaution)
-        case .outdated: colour = NSColor(TallyTheme.statusBad)
+        case .fresh:    colour = NSColor(VektorTheme.muted)
+        case .stale:    colour = NSColor(VektorTheme.statusCaution)
+        case .outdated: colour = NSColor(VektorTheme.statusBad)
         }
         attr.addAttribute(.foregroundColor, value: colour, range: range)
         return attr
@@ -266,7 +266,7 @@ struct CalculatorPane: View {
             else { continue }
             // attr was built from `source` 1:1, so the same NSRange applies.
             attr.addAttribute(.foregroundColor,
-                              value: NSColor(TallyTheme.accent),
+                              value: NSColor(VektorTheme.accent),
                               range: match.range)
         }
     }
@@ -307,8 +307,8 @@ struct CalculatorPane: View {
                       let v = Int(ns.substring(with: valueRange))
                 else { continue }
                 let colour: NSColor
-                if v <= 5000      { colour = NSColor(TallyTheme.statusBad) }
-                else if v <= 8000 { colour = NSColor(TallyTheme.statusCaution) }
+                if v <= 5000      { colour = NSColor(VektorTheme.statusBad) }
+                else if v <= 8000 { colour = NSColor(VektorTheme.statusCaution) }
                 else              { continue }
                 attr.addAttribute(.foregroundColor, value: colour, range: match.range)
             }
@@ -320,8 +320,8 @@ struct CalculatorPane: View {
                       let v = Int(ns.substring(with: valueRange))
                 else { continue }
                 let colour: NSColor
-                if v <= 3      { colour = NSColor(TallyTheme.statusBad) }
-                else if v <= 5 { colour = NSColor(TallyTheme.statusCaution) }
+                if v <= 3      { colour = NSColor(VektorTheme.statusBad) }
+                else if v <= 5 { colour = NSColor(VektorTheme.statusCaution) }
                 else           { continue }
                 attr.addAttribute(.foregroundColor, value: colour, range: match.range)
             }
@@ -357,8 +357,8 @@ struct CalculatorPane: View {
             else { continue }
             let feet = hundreds * 100
             let colour: NSColor
-            if feet <= 1000      { colour = NSColor(TallyTheme.statusBad) }
-            else if feet <= 3000 { colour = NSColor(TallyTheme.statusCaution) }
+            if feet <= 1000      { colour = NSColor(VektorTheme.statusBad) }
+            else if feet <= 3000 { colour = NSColor(VektorTheme.statusCaution) }
             else                 { continue }
             // Colour only BKN/OVC/VV + the height digits, NOT the
             // optional CB/TCU suffix — the suffix gets its own colour
@@ -395,7 +395,7 @@ struct CalculatorPane: View {
             let tokenRange = match.range(at: 1)
             guard tokenRange.location != NSNotFound else { continue }
             attr.addAttribute(.foregroundColor,
-                              value: NSColor(TallyTheme.statusBad),
+                              value: NSColor(VektorTheme.statusBad),
                               range: tokenRange)
         }
     }
@@ -468,13 +468,13 @@ struct CalculatorPane: View {
         // would otherwise be matched as `SHRA` caution + `+SHRA` severe)
         // ends with the severe colour.
         apply(regex: cautionWeatherGroupRegex, captureGroup: 1,
-              color: NSColor(TallyTheme.statusCaution))
+              color: NSColor(VektorTheme.statusCaution))
         apply(regex: cloudSuffixCautionRegex, captureGroup: 0,
-              color: NSColor(TallyTheme.statusCaution))
+              color: NSColor(VektorTheme.statusCaution))
         apply(regex: severeWeatherGroupRegex, captureGroup: 1,
-              color: NSColor(TallyTheme.statusBad))
+              color: NSColor(VektorTheme.statusBad))
         apply(regex: cloudSuffixSevereRegex, captureGroup: 0,
-              color: NSColor(TallyTheme.statusBad))
+              color: NSColor(VektorTheme.statusBad))
     }
 
     /// Join orphan `PROB30` / `PROB40` lines onto the following
@@ -533,16 +533,16 @@ struct CalculatorPane: View {
 
     private static func color(_ r: LineResult) -> Color {
         switch r.kind {
-        case .error:      return TallyTheme.statusCaution
-        case .timezone:   return TallyTheme.accent
-        case .expression: return TallyTheme.text
-        default:          return TallyTheme.muted
+        case .error:      return VektorTheme.statusCaution
+        case .timezone:   return VektorTheme.accent
+        case .expression: return VektorTheme.text
+        default:          return VektorTheme.muted
         }
     }
 
     // MARK: - Diagnostics
 
-    private static let identityLogger = Logger(subsystem: "app.tally.Tally", category: "calculator-diag")
+    private static let identityLogger = Logger(subsystem: "app.vektor.Vektor", category: "calculator-diag")
     private static let identityConversionRegex: NSRegularExpression? = {
         try? NSRegularExpression(
             pattern: #"^\s*([\d.,]+)\s*([A-Za-z]{3,4})\s+(?:in|to)\s+([A-Za-z]{3,4})\s*$"#
@@ -672,14 +672,14 @@ final class AutocompletingTextView: NSTextView {
 
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font ?? NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
-            .foregroundColor: NSColor(TallyTheme.muted).withAlphaComponent(0.55)
+            .foregroundColor: NSColor(VektorTheme.muted).withAlphaComponent(0.55)
         ]
         (suggestion as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: attrs)
 
         let chipFont = NSFont.monospacedSystemFont(ofSize: 9, weight: .medium)
         let chipAttrs: [NSAttributedString.Key: Any] = [
             .font: chipFont,
-            .foregroundColor: NSColor(TallyTheme.muted).withAlphaComponent(0.7)
+            .foregroundColor: NSColor(VektorTheme.muted).withAlphaComponent(0.7)
         ]
         let ghostSize = (suggestion as NSString).size(withAttributes: attrs)
         let chip = "  ↩"

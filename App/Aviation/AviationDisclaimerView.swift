@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One-time aviation disclaimer shown on the first visit to the Aviation
-/// pane. Acceptance is persisted in `tally.aviation.disclaimerAccepted`.
+/// pane. Acceptance is persisted in `vektor.aviation.disclaimerAccepted`.
 /// This is in addition to — not in place of — the README safety notice
 /// and the full DISCLAIMER.md in the repository.
 struct AviationDisclaimerView: View {
@@ -50,7 +50,7 @@ struct AviationDisclaimerView: View {
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity)
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     private var header: some View {

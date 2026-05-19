@@ -1,5 +1,5 @@
 import SwiftUI
-import TallyEngine
+import VektorEngine
 import os
 
 enum Pane: String, CaseIterable, Identifiable {
@@ -39,11 +39,11 @@ enum Pane: String, CaseIterable, Identifiable {
     var enabledKey: String? {
         switch self {
         case .calculator, .timezone: return nil
-        case .notes:                 return "tally.panes.notes"
-        case .finance:               return "tally.panes.finance"
-        case .aviation:              return "tally.panes.aviation"
-        case .map:                   return "tally.panes.map"
-        case .stocks:                return "tally.panes.stocks"
+        case .notes:                 return "vektor.panes.notes"
+        case .finance:               return "vektor.panes.finance"
+        case .aviation:              return "vektor.panes.aviation"
+        case .map:                   return "vektor.panes.map"
+        case .stocks:                return "vektor.panes.stocks"
         }
     }
 
@@ -100,7 +100,7 @@ final class AppModel: ObservableObject {
     @Published var fxSourceLabel: String = "Not configured"
     @Published var fxIsOffline: Bool = false
 
-    private static let logger = Logger(subsystem: "app.tally.Tally", category: "app-model")
+    private static let logger = Logger(subsystem: "app.vektor.Vektor", category: "app-model")
 
     private let fx = FXService()
     private let crypto = CryptoService()
@@ -140,8 +140,8 @@ final class AppModel: ObservableObject {
                 // (if signature changed since the key was saved)
                 // fires only when the user actually has a key AND
                 // a `stock TICKER` line is being evaluated.
-                guard KeychainStorage.hasKey("tally.stocks.fmpApiKey") else { return nil }
-                return KeychainStorage.get("tally.stocks.fmpApiKey")
+                guard KeychainStorage.hasKey("vektor.stocks.fmpApiKey") else { return nil }
+                return KeychainStorage.get("vektor.stocks.fmpApiKey")
             }
             _ = self
         }
@@ -180,8 +180,8 @@ final class AppModel: ObservableObject {
         // Same presence-gate pattern as FMP — Frankfurter (free,
         // anonymous) is the default FX source, so users who never
         // pasted an OXR key get no Keychain access on launch.
-        let oxrKey: String = KeychainStorage.hasKey("tally.fx.openExchangeRatesKey")
-            ? (KeychainStorage.get("tally.fx.openExchangeRatesKey") ?? "")
+        let oxrKey: String = KeychainStorage.hasKey("vektor.fx.openExchangeRatesKey")
+            ? (KeychainStorage.get("vektor.fx.openExchangeRatesKey") ?? "")
             : ""
         let source: FXService.Source
         if !oxrKey.isEmpty {
@@ -307,7 +307,7 @@ struct ContentView: View {
     @State private var showPaneMenu = false
     @State private var showDocsPopover = false
     @State private var showManagePanesPopover = false
-    @AppStorage("tally.appearance") private var appearance: String = "system"
+    @AppStorage("vektor.appearance") private var appearance: String = "system"
 
     // Session restore: remember which pane the user was on if they
     // come back to Vektor within 10 minutes. Tracks "last away" rather
@@ -316,8 +316,8 @@ struct ContentView: View {
     // Timezone, not bounce to Calculator because the *switch* happened
     // 30 min ago.
     @Environment(\.scenePhase) private var scenePhase
-    private static let sessionPaneKey   = "tally.session.lastPane"
-    private static let sessionStampKey  = "tally.session.lastPaneAt"
+    private static let sessionPaneKey   = "vektor.session.lastPane"
+    private static let sessionStampKey  = "vektor.session.lastPaneAt"
     private static let sessionWindow: TimeInterval = 10 * 60   // 10 minutes
 
     /// Resolve the pane to land on at view creation. Inside the
@@ -347,14 +347,14 @@ struct ContentView: View {
     // Per-module enabled flags. Default to true so existing users don't
     // lose features after an update; new users can trim the menu down
     // from Settings.
-    @AppStorage("tally.panes.notes")        private var enableNotes        = false
-    @AppStorage("tally.panes.finance")      private var enableFinance      = true
-    @AppStorage("tally.panes.aviation")     private var enableAviation     = true
-    @AppStorage("tally.panes.map")          private var enableMap          = true
+    @AppStorage("vektor.panes.notes")        private var enableNotes        = false
+    @AppStorage("vektor.panes.finance")      private var enableFinance      = true
+    @AppStorage("vektor.panes.aviation")     private var enableAviation     = true
+    @AppStorage("vektor.panes.map")          private var enableMap          = true
     // Stocks defaults to OFF — pulling financial data needs the user's
     // FMP API key, which is an explicit opt-in, so the pane stays hidden
     // until the user enables it in Settings.
-    @AppStorage("tally.panes.stocks")       private var enableStocks       = false
+    @AppStorage("vektor.panes.stocks")       private var enableStocks       = false
 
     /// Panes currently visible in the dropdown — core panes are always
     /// included, the rest are filtered by the per-module Settings toggles.
@@ -381,7 +381,7 @@ struct ContentView: View {
             // of sitting ~28pt below them.
             .ignoresSafeArea(.container, edges: .top)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(TallyTheme.background.ignoresSafeArea())
+            .background(VektorTheme.background.ignoresSafeArea())
             .preferredColorScheme(colorScheme(for: appearance))
             .environmentObject(calculatorBridge)
             .task { await model.bootstrapLiveData() }
@@ -452,7 +452,7 @@ struct ContentView: View {
         .padding(.leading, 78)
         .padding(.trailing, 12)
         .frame(height: 38)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     /// New-note button shown in the chrome when Notes is the active
@@ -466,7 +466,7 @@ struct ContentView: View {
         } label: {
             Image(systemName: "square.and.pencil")
                 .imageScale(.large)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         }
@@ -503,7 +503,7 @@ struct ContentView: View {
                                     Spacer()
                                     if pane == selection {
                                         Image(systemName: "checkmark")
-                                            .foregroundStyle(TallyTheme.accent)
+                                            .foregroundStyle(VektorTheme.accent)
                                     }
                                 }
                             }
@@ -537,21 +537,21 @@ struct ContentView: View {
             HStack(spacing: 8) {
                 Group {
                     if selection == .calculator {
-                        Image(nsImage: TallyGlyph.nsImage(
+                        Image(nsImage: VektorGlyph.nsImage(
                             size: 18,
-                            color: NSColor(TallyTheme.accent)
+                            color: NSColor(VektorTheme.accent)
                         ))
                         .renderingMode(.original)
                     } else {
                         Image(systemName: selection.icon)
                             .imageScale(.large)
-                            .foregroundStyle(TallyTheme.text)
+                            .foregroundStyle(VektorTheme.text)
                     }
                 }
                 .frame(width: 22, height: 22)
                 Text("Vektor")
                     .fontWeight(.semibold)
-                    .foregroundStyle(TallyTheme.accent)
+                    .foregroundStyle(VektorTheme.accent)
                     .opacity(0.7)
             }
             .contentShape(Rectangle())
@@ -574,7 +574,7 @@ struct ContentView: View {
         } label: {
             Image(systemName: "plus")
                 .imageScale(.large)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         } primaryAction: {
@@ -594,7 +594,7 @@ struct ContentView: View {
         } label: {
             Image(systemName: "line.3.horizontal")
                 .imageScale(.large)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         } primaryAction: {
@@ -641,24 +641,24 @@ struct ContentView: View {
 /// Timezone are shown as static "always shown" rows so users
 /// understand why they're not toggleable.
 private struct ManagePanesView: View {
-    @AppStorage("tally.panes.notes")    private var enableNotes    = false
-    @AppStorage("tally.panes.finance")  private var enableFinance  = true
-    @AppStorage("tally.panes.aviation") private var enableAviation = true
-    @AppStorage("tally.panes.map")      private var enableMap      = true
-    @AppStorage("tally.panes.stocks")   private var enableStocks   = false
+    @AppStorage("vektor.panes.notes")    private var enableNotes    = false
+    @AppStorage("vektor.panes.finance")  private var enableFinance  = true
+    @AppStorage("vektor.panes.aviation") private var enableAviation = true
+    @AppStorage("vektor.panes.map")      private var enableMap      = true
+    @AppStorage("vektor.panes.stocks")   private var enableStocks   = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Manage panes")
                 .font(.system(.headline))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .padding(.horizontal, 14)
                 .padding(.top, 14)
                 .padding(.bottom, 4)
 
             Text("Hide the panes you don't use. The choice persists across launches.")
                 .font(.caption)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 10)
 
@@ -693,15 +693,15 @@ private struct ManagePanesView: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: pane.icon)
                 .frame(width: 22, height: 22)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             VStack(alignment: .leading, spacing: 1) {
                 Text(pane.rawValue)
                     .font(.system(.body))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 if !alwaysOn, !pane.moduleDescription.isEmpty {
                     Text(pane.moduleDescription)
                         .font(.caption2)
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -709,7 +709,7 @@ private struct ManagePanesView: View {
             if alwaysOn {
                 Text("Always shown")
                     .font(.caption2)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             } else if let binding {
                 Toggle("", isOn: binding)
                     .labelsHidden()

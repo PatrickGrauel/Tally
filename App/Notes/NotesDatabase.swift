@@ -9,7 +9,7 @@ import GRDB
 ///
 /// One database file lives in the app's sandboxed Application Support
 /// container next to the assets directory. The file is keyed by the
-/// app's bundle identifier (`app.tally.Tally`), so a future bundle-id
+/// app's bundle identifier (`app.vektor.Vektor`), so a future bundle-id
 /// change would orphan the old DB.
 ///
 /// Schema is versioned via GRDB's `DatabaseMigrator`. The initial
@@ -234,8 +234,8 @@ final class NotesDatabase {
     /// One-shot import of the legacy UserDefaults JSON store, if any.
     /// Called once at app launch; deletes the legacy key afterwards so
     /// subsequent runs are no-ops.
-    static let legacyKey = "tally.notes.v1"
-    static let migrationCompleteKey = "tally.notes.sqliteMigrated"
+    static let legacyKey = "vektor.notes.v1"
+    static let migrationCompleteKey = "vektor.notes.sqliteMigrated"
 
     func importLegacyUserDefaultsIfNeeded() {
         let ud = UserDefaults.standard

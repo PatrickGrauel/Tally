@@ -82,7 +82,7 @@ struct NotesSidebar: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
         }
-        .background(TallyTheme.surface)
+        .background(VektorTheme.surface)
     }
 
     // MARK: - Search
@@ -90,7 +90,7 @@ struct NotesSidebar: View {
     private var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
                 .font(.system(size: 11))
             TextField("Search notes", text: $search)
                 .textFieldStyle(.plain)
@@ -100,7 +100,7 @@ struct NotesSidebar: View {
                     search = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                         .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
@@ -108,7 +108,7 @@ struct NotesSidebar: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(TallyTheme.codeSurface)
+        .background(VektorTheme.codeSurface)
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
@@ -118,15 +118,15 @@ struct NotesSidebar: View {
     private func row(_ target: NotesFilter, count: Int) -> some View {
         HStack(spacing: 6) {
             Image(systemName: target.iconName)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
                 .frame(width: 16)
             Text(target.displayName)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
             Spacer()
             if count > 0 {
                 Text("\(count)")
                     .font(.caption2)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             }
         }
         .tag(target)
@@ -274,7 +274,7 @@ struct TagDisclosureGroup: View {
         // levels start collapsed.
         let isTopLevel = !node.path.contains("/")
         self._expanded = AppStorage(wrappedValue: isTopLevel,
-                                    "tally.notes.tagExpanded.\(node.path)")
+                                    "vektor.notes.tagExpanded.\(node.path)")
     }
 
     var body: some View {
@@ -306,22 +306,22 @@ struct TagDisclosureGroup: View {
                     .frame(width: 14)
             } else {
                 Image(systemName: "number")
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
                     .frame(width: 14)
             }
             Text(node.displayLabel)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
             if meta?.isPinned == true {
                 Image(systemName: "pin.fill")
                     .font(.system(size: 8))
-                    .foregroundStyle(TallyTheme.accent)
+                    .foregroundStyle(VektorTheme.accent)
                     .rotationEffect(.degrees(45))
             }
             Spacer()
             if node.count > 0 {
                 Text("\(node.count)")
                     .font(.caption2)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             }
         }
         .tag(NotesFilter.tag(node.path))
@@ -374,11 +374,11 @@ private struct EmojiSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Emoji for #\(tag)")
                 .font(.headline)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
 
             Text("Type or paste a single emoji, or pick a suggestion below.")
                 .font(.caption)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
 
             HStack {
                 TextField("emoji", text: $draft)
@@ -400,7 +400,7 @@ private struct EmojiSheet: View {
                 Button("Set") { onSet(draft) }
                     .keyboardShortcut(.return)
                     .buttonStyle(.borderedProminent)
-                    .tint(TallyTheme.accent)
+                    .tint(VektorTheme.accent)
                     .disabled(draft.isEmpty)
             }
         }

@@ -1,10 +1,10 @@
 import SwiftUI
-import TallyAviation
+import VektorAviation
 
 struct RunwayWindTab: View {
-    @AppStorage("tally.e6b.rwy.id")        private var runwayId: String = "27"
-    @AppStorage("tally.e6b.rwy.windFrom")  private var windFrom: Double = 300
-    @AppStorage("tally.e6b.rwy.windSpeed") private var windSpeed: Double = 15
+    @AppStorage("vektor.e6b.rwy.id")        private var runwayId: String = "27"
+    @AppStorage("vektor.e6b.rwy.windFrom")  private var windFrom: Double = 300
+    @AppStorage("vektor.e6b.rwy.windSpeed") private var windSpeed: Double = 15
 
     var body: some View {
         Form {

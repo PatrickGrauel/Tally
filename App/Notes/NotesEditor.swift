@@ -20,12 +20,12 @@ struct NotesEditor: View {
     var body: some View {
         VStack(spacing: 0) {
             headerBar
-            Divider().background(TallyTheme.divider)
+            Divider().background(VektorTheme.divider)
             content
             if note != nil {
-                Divider().background(TallyTheme.divider)
+                Divider().background(VektorTheme.divider)
                 FormattingBar(controller: controller)
-                Divider().background(TallyTheme.divider)
+                Divider().background(VektorTheme.divider)
                 statusBar
             }
         }
@@ -147,17 +147,17 @@ struct NotesEditor: View {
         HStack(spacing: 12) {
             Text(countSummary)
                 .font(.system(size: 10))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Spacer()
             if let saved = note {
                 Text("Edited \(relative(saved.modifiedAt))")
                     .font(.system(size: 10))
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
-        .background(TallyTheme.surface)
+        .background(VektorTheme.surface)
     }
 
     private var countSummary: String {
@@ -348,10 +348,10 @@ struct NotesEditor: View {
         VStack(spacing: 8) {
             Image(systemName: "note.text")
                 .font(.system(size: 32))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Text("Select a note, or press ⌘N to create one.")
                 .font(.callout)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -677,14 +677,14 @@ private struct FormattingBar: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(TallyTheme.surface)
+        .background(VektorTheme.surface)
     }
 
     private func barButton(_ system: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: system)
                 .font(.system(size: 13))
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
                 .frame(width: 28, height: 22)
                 .contentShape(Rectangle())
         }
@@ -694,7 +694,7 @@ private struct FormattingBar: View {
 
     private var divider: some View {
         Rectangle()
-            .fill(TallyTheme.divider)
+            .fill(VektorTheme.divider)
             .frame(width: 1, height: 16)
             .padding(.horizontal, 4)
     }

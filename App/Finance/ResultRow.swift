@@ -20,13 +20,13 @@ struct ResultRow: View {
             HStack(spacing: 6) {
                 Text(value)
                     .font(emphasised ? .headline : .body)
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                     .monospacedDigit()
                 Button {
                     calc.send(label, sendable ?? value)
                 } label: {
                     Image(systemName: "arrow.right.circle")
-                        .foregroundStyle(hovering ? TallyTheme.text : TallyTheme.muted)
+                        .foregroundStyle(hovering ? VektorTheme.text : VektorTheme.muted)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
                 }

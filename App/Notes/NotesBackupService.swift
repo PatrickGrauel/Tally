@@ -26,7 +26,7 @@ final class NotesBackupService: ObservableObject {
     @Published private(set) var lastSyncAt: Date?
     @Published private(set) var lastError: String?
 
-    private static let bookmarkKey = "tally.notes.backupBookmark"
+    private static let bookmarkKey = "vektor.notes.backupBookmark"
     private weak var store: NotesStore?
 
     private init() {

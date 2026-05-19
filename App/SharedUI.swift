@@ -12,10 +12,10 @@ enum StatusLevel: Equatable {
 
     var colour: Color {
         switch self {
-        case .good:     return TallyTheme.statusGood
-        case .caution:  return TallyTheme.statusCaution
-        case .bad:      return TallyTheme.statusBad
-        case .neutral:  return TallyTheme.muted
+        case .good:     return VektorTheme.statusGood
+        case .caution:  return VektorTheme.statusCaution
+        case .bad:      return VektorTheme.statusBad
+        case .neutral:  return VektorTheme.muted
         }
     }
 

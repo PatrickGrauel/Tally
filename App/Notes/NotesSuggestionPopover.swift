@@ -109,12 +109,12 @@ private struct SuggestionListView: View {
     private func row(idx: Int, item: SuggestionItem) -> some View {
         HStack(spacing: 10) {
             Image(systemName: item.icon)
-                .foregroundStyle(TallyTheme.accent)
+                .foregroundStyle(VektorTheme.accent)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 if let sub = item.subtitle {
                     Text(sub)
                         .font(.system(size: 10))
@@ -127,7 +127,7 @@ private struct SuggestionListView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(idx == controller.selectedIndex
-                    ? TallyTheme.accent.opacity(0.18)
+                    ? VektorTheme.accent.opacity(0.18)
                     : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .padding(.horizontal, 4)

@@ -17,7 +17,7 @@ import SwiftUI
 /// TravelBudgetForm, InflationForm); this file is just the
 /// dispatcher.
 struct FinancePane: View {
-    @AppStorage("tally.finance.tab") private var rawTab: String = FinanceTab.loan.rawValue
+    @AppStorage("vektor.finance.tab") private var rawTab: String = FinanceTab.loan.rawValue
     @StateObject private var loans = LoanStore.loans()
     @StateObject private var deals = RealEstateStore.deals()
 
@@ -33,7 +33,7 @@ struct FinancePane: View {
             content
                 .frame(maxWidth: .infinity)
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     // MARK: - Sidebar
@@ -46,7 +46,7 @@ struct FinancePane: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(cat.title.uppercased())
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(TallyTheme.muted)
+                                .foregroundStyle(VektorTheme.muted)
                                 .padding(.horizontal, 12)
                                 .padding(.bottom, 2)
                             ForEach(FinanceTab.allCases.filter { $0.category == cat }) { t in
@@ -59,7 +59,7 @@ struct FinancePane: View {
             }
             Spacer(minLength: 0)
         }
-        .background(TallyTheme.surface)
+        .background(VektorTheme.surface)
     }
 
     @ViewBuilder
@@ -70,16 +70,16 @@ struct FinancePane: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: t.systemImage)
-                    .foregroundStyle(selected ? TallyTheme.accent : TallyTheme.muted)
+                    .foregroundStyle(selected ? VektorTheme.accent : VektorTheme.muted)
                     .frame(width: 16)
                 Text(t.label)
                     .font(.callout)
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                 Spacer()
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(selected ? TallyTheme.accent.opacity(0.14) : Color.clear)
+            .background(selected ? VektorTheme.accent.opacity(0.14) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

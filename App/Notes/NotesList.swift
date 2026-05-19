@@ -35,7 +35,7 @@ struct NotesList: View {
     /// (archive, trash, pin) operate on every id here. Empty when the
     /// user is in single-select mode (the default).
     @State private var multiSelection: Set<UUID> = []
-    @AppStorage("tally.notes.sortMode") private var sortModeRaw: String = NotesSortMode.modified.rawValue
+    @AppStorage("vektor.notes.sortMode") private var sortModeRaw: String = NotesSortMode.modified.rawValue
     private var sortMode: NotesSortMode {
         NotesSortMode(rawValue: sortModeRaw) ?? .modified
     }
@@ -43,7 +43,7 @@ struct NotesList: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider().background(TallyTheme.divider)
+            Divider().background(VektorTheme.divider)
             if filteredNotes.isEmpty {
                 emptyState
             } else {
@@ -83,7 +83,7 @@ struct NotesList: View {
                 }
             }
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 
     // MARK: - Header
@@ -92,11 +92,11 @@ struct NotesList: View {
         HStack(spacing: 8) {
             Text(filter.displayName)
                 .font(.headline)
-                .foregroundStyle(TallyTheme.text)
+                .foregroundStyle(VektorTheme.text)
             Spacer()
             Text("\(filteredNotes.count)")
                 .font(.caption)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Menu {
                 ForEach(NotesSortMode.allCases) { mode in
                     Button {
@@ -111,7 +111,7 @@ struct NotesList: View {
             } label: {
                 Image(systemName: "arrow.up.arrow.down")
                     .font(.caption)
-                    .foregroundStyle(TallyTheme.muted)
+                    .foregroundStyle(VektorTheme.muted)
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -128,10 +128,10 @@ struct NotesList: View {
         VStack(spacing: 6) {
             Image(systemName: filter.iconName)
                 .font(.system(size: 22))
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
             Text(emptyText)
                 .font(.callout)
-                .foregroundStyle(TallyTheme.muted)
+                .foregroundStyle(VektorTheme.muted)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -282,23 +282,23 @@ private struct NotesListRow: View {
                     if note.isPinned {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 9))
-                            .foregroundStyle(TallyTheme.accent)
+                            .foregroundStyle(VektorTheme.accent)
                             .rotationEffect(.degrees(45))
                     }
                     Text(note.title)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(TallyTheme.text)
+                        .foregroundStyle(VektorTheme.text)
                         .lineLimit(1)
                     Spacer()
                     Text(NotesListRow.dateFormatter.localizedString(
                         for: note.modifiedAt, relativeTo: Date()))
                         .font(.system(size: 10))
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                 }
                 if !note.preview.isEmpty {
                     Text(strippedPreview)
                         .font(.system(size: 11))
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                         .lineLimit(2)
                 }
                 if !note.tags.isEmpty {
@@ -306,10 +306,10 @@ private struct NotesListRow: View {
                         ForEach(note.tags.prefix(4), id: \.self) { tag in
                             Text("#\(tag)")
                                 .font(.system(size: 9, design: .monospaced))
-                                .foregroundStyle(TallyTheme.accent)
+                                .foregroundStyle(VektorTheme.accent)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1)
-                                .background(TallyTheme.accent.opacity(0.10))
+                                .background(VektorTheme.accent.opacity(0.10))
                                 .clipShape(Capsule())
                         }
                     }

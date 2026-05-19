@@ -6,14 +6,14 @@ import AppKit
 /// financials from financialmodelingprep.com, scores six axes 0–10, and
 /// renders both a textual scorecard and a radar chart.
 struct StocksPane: View {
-    @AppStorage("tally.stocks.lastTicker") private var lastTicker: String = ""
-    @AppStorage("tally.stocks.recentTickers") private var recentTickersRaw: String = ""
+    @AppStorage("vektor.stocks.lastTicker") private var lastTicker: String = ""
+    @AppStorage("vektor.stocks.recentTickers") private var recentTickersRaw: String = ""
     /// Whether an FMP key is currently stored. Mirrored into UserDefaults
     /// by `KeychainStorage.set/delete` so we can answer "is the user set
     /// up?" without ever reading the Keychain — which would trigger a
     /// system prompt on every ad-hoc build. The actual key value is
     /// read only at API-call time inside FMPClient.
-    @AppStorage("tally.stocks.fmpApiKey.present") private var hasFMPKey: Bool = false
+    @AppStorage("vektor.stocks.fmpApiKey.present") private var hasFMPKey: Bool = false
     // Observe the plan + custom-cap settings so the footer's daily-cap
     // number reflects the user's current plan in real time. Without
     // this, changing the plan in the manage popover refreshes that
@@ -92,7 +92,7 @@ struct StocksPane: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             footerBar
         }
@@ -143,7 +143,7 @@ struct StocksPane: View {
                 HStack(spacing: 8) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(TallyTheme.accent)
+                        .foregroundStyle(VektorTheme.accent)
                     Text("Connect a data source — optional")
                         .font(.headline)
                 }
@@ -160,7 +160,7 @@ struct StocksPane: View {
                         Label("Get a free key", systemImage: "arrow.up.right.square")
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(TallyTheme.accent)
+                    .tint(VektorTheme.accent)
                     SecureField("Paste your FMP key here", text: $pastedKey)
                         .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 220)
@@ -172,7 +172,7 @@ struct StocksPane: View {
                         // automatically via KeychainStorage.set, which
                         // wakes the `.onChange(of: hasFMPKey)` observer
                         // above to wire up FMPClient.
-                        KeychainStorage.set(trimmed, for: "tally.stocks.fmpApiKey")
+                        KeychainStorage.set(trimmed, for: "vektor.stocks.fmpApiKey")
                         pastedKey = ""
                     }
                     .disabled(pastedKey.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -235,10 +235,10 @@ struct StocksPane: View {
                             .buttonStyle(.plain)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(TallyTheme.codeSurface)
+                            .background(VektorTheme.codeSurface)
                             .clipShape(Capsule())
                             .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(TallyTheme.text)
+                            .foregroundStyle(VektorTheme.text)
                         }
                         Spacer()
                     }
@@ -305,7 +305,7 @@ struct StocksPane: View {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(TallyTheme.accent)
+                .foregroundStyle(VektorTheme.accent)
             }
             .padding(.vertical, 2)
         }
@@ -325,10 +325,10 @@ struct StocksPane: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(card.symbol)
                         .font(.system(.title, design: .monospaced))
-                        .foregroundStyle(TallyTheme.accent)
+                        .foregroundStyle(VektorTheme.accent)
                     Text(card.companyName)
                         .font(.title3)
-                        .foregroundStyle(TallyTheme.text)
+                        .foregroundStyle(VektorTheme.text)
                         .lineLimit(1)
                     Spacer()
                     Text("analysed \(card.analysedAt.formatted(date: .numeric, time: .omitted))")
@@ -342,7 +342,7 @@ struct StocksPane: View {
                     if let price = card.currentPrice {
                         Text(formattedPrice(price, currency: card.priceCurrency))
                             .font(.system(size: 36, weight: .semibold, design: .rounded))
-                            .foregroundStyle(TallyTheme.text)
+                            .foregroundStyle(VektorTheme.text)
                             .monospacedDigit()
                         if let change = card.oneMonthChangePct {
                             ChangeBadge(percent: change)
@@ -354,7 +354,7 @@ struct StocksPane: View {
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
                             Text("\(Int(card.totalScore.rounded()))")
                                 .font(.system(size: 28, weight: .semibold, design: .rounded))
-                                .foregroundStyle(TallyTheme.accent)
+                                .foregroundStyle(VektorTheme.accent)
                             Text("/ \(card.maxScore)")
                                 .font(.system(.body, design: .rounded))
                                 .foregroundStyle(.secondary)
@@ -384,7 +384,7 @@ struct StocksPane: View {
                 }
                 Text(card.shape)
                     .font(.callout)
-                    .foregroundStyle(TallyTheme.text)
+                    .foregroundStyle(VektorTheme.text)
                     .fixedSize(horizontal: false, vertical: true)
                 if card.stale {
                     HStack(spacing: 6) {
@@ -445,7 +445,7 @@ struct StocksPane: View {
                     }
                     Text(axis.axis.rawValue)
                         .fontWeight(.medium)
-                        .foregroundStyle(TallyTheme.text)
+                        .foregroundStyle(VektorTheme.text)
                     Spacer()
                     if let s = axis.score {
                         HStack(spacing: 6) {
@@ -453,7 +453,7 @@ struct StocksPane: View {
                             Text("\(Int(s.rounded()))/10")
                                 .font(.system(.body, design: .monospaced))
                                 .frame(width: 44, alignment: .trailing)
-                                .foregroundStyle(TallyTheme.text)
+                                .foregroundStyle(VektorTheme.text)
                         }
                     } else {
                         Text("N/A")
@@ -470,7 +470,7 @@ struct StocksPane: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(axis.headline)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(TallyTheme.muted)
+                        .foregroundStyle(VektorTheme.muted)
                     if !axis.rationale.isEmpty {
                         Text(axis.rationale)
                             .font(.caption)
@@ -490,7 +490,7 @@ struct StocksPane: View {
                     slices: [AxisDetailView.Slice(
                         symbol: card.symbol,
                         score: axis,
-                        color: TallyTheme.accent
+                        color: VektorTheme.accent
                     )]
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -533,7 +533,7 @@ struct StocksPane: View {
         .background(.thinMaterial)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(TallyTheme.divider)
+                .fill(VektorTheme.divider)
                 .frame(height: 0.5)
         }
         .popover(isPresented: $showManage, arrowEdge: .bottom) {
@@ -660,17 +660,17 @@ struct StocksPane: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(hit.symbol)
                             .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(TallyTheme.accent)
+                            .foregroundStyle(VektorTheme.accent)
                             .frame(width: 70, alignment: .leading)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(hit.name)
                                 .font(.callout)
-                                .foregroundStyle(TallyTheme.text)
+                                .foregroundStyle(VektorTheme.text)
                                 .lineLimit(1)
                             if let ex = hit.exchange {
                                 Text(ex)
                                     .font(.caption2)
-                                    .foregroundStyle(TallyTheme.muted)
+                                    .foregroundStyle(VektorTheme.muted)
                             }
                         }
                         Spacer()
@@ -680,7 +680,7 @@ struct StocksPane: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .background(TallyTheme.surface)
+                .background(VektorTheme.surface)
             }
         }
     }
@@ -707,8 +707,8 @@ private struct ScoreBar: View {
             ForEach(0..<10, id: \.self) { i in
                 Rectangle()
                     .fill(Double(i) < score
-                          ? TallyTheme.accent
-                          : TallyTheme.divider)
+                          ? VektorTheme.accent
+                          : VektorTheme.divider)
                     .frame(width: 6, height: 10)
             }
         }

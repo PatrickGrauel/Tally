@@ -22,7 +22,7 @@ struct E6BView: View {
         }
     }
 
-    @AppStorage("tally.e6b.tab") private var selected: String = E6BTab.wind.rawValue
+    @AppStorage("vektor.e6b.tab") private var selected: String = E6BTab.wind.rawValue
     private var binding: Binding<E6BTab> {
         Binding(
             get: { E6BTab(rawValue: selected) ?? .wind },
@@ -47,9 +47,9 @@ struct E6BView: View {
                             .frame(maxWidth: .infinity)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(isActive ? TallyTheme.surface : Color.clear)
+                                    .fill(isActive ? VektorTheme.surface : Color.clear)
                             )
-                            .foregroundStyle(isActive ? TallyTheme.text : TallyTheme.muted)
+                            .foregroundStyle(isActive ? VektorTheme.text : VektorTheme.muted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -57,7 +57,7 @@ struct E6BView: View {
             .padding(8)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(TallyTheme.surface.opacity(0.4))
+                    .fill(VektorTheme.surface.opacity(0.4))
             )
             .padding([.horizontal, .top], 12)
 
@@ -72,6 +72,6 @@ struct E6BView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(TallyTheme.background)
+        .background(VektorTheme.background)
     }
 }
