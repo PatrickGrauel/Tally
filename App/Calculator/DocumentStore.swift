@@ -359,9 +359,11 @@ final class DocumentStore: ObservableObject {
         9am tomorrow Berlin in Los Angeles   // when is your 9am Berlin in LA tomorrow?
 
         # Duration from a calculation
-        77/55 in time                    // fuel ÷ burn = 01:24:00 endurance
-        20/60 in time                    // 20 min as hh:mm:ss
-        2.5 in time                      // bare number = hours → 02:30:00
+        77/55 in hours                   // fuel ÷ burn → 1h 24min endurance
+        20/60 in hours                   // 20min
+        2.5 in hours                     // 2h 30min
+        816 in minutes                   // 13h 36min 00sec
+        3725 in seconds                  // 1h 02min 05sec
 
         # See also
         // Date math: @dates. Pilot stuff: @aviation. Back to @welcome.

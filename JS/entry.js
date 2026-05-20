@@ -71,7 +71,7 @@ globalThis.vektor = {
    */
   format(value, precision) {
     if (value === undefined || value === null) return "";
-    // Pre-formatted strings (e.g. from hms()/hm()) must pass through verbatim;
+    // Pre-formatted strings (e.g. from humanTime()) must pass through verbatim;
     // math.format would otherwise wrap them in quotes — and we don't want to
     // group thousands inside `01:48:00` either.
     if (typeof value === "string") return value;
@@ -328,7 +328,7 @@ globalThis.vektor = {
       // Time — math.js bundles `second`/`seconds`, but the plural map is
       // the safest place to guarantee they exist as Unit definitions for
       // mathjs.evaluate to recognise inside function arguments like
-      // `hms(3725 seconds)`.
+      // `humanTime(3725 seconds, 'seconds')`.
       seconds: "s", second_unit: "s",
       minutes: "minute", hours: "hour", days: "day",
       // Temperature — math.js uses degC / degF / K; offer natural names.
@@ -366,28 +366,44 @@ globalThis.vektor = {
   },
 
   /**
-   * Format a duration as hh:mm:ss.
-   * Accepts either a math.js Unit with a time dimension, or a plain number
-   * (treated as seconds). Negative durations render with a leading "-".
+   * Format a duration in human-readable "Xh Ymin Zsec" form.
+   * `unitName` selects how a plain-number `value` is interpreted ("hours",
+   * "minutes", or "seconds") AND which trailing units are always shown:
+   *   in hours   → h (if >0), min (always),     sec (if >0)
+   *   in minutes → h (if >0), min (always),     sec (always)
+   *   in seconds → h (if >0), min (if >0),      sec (always)
+   * Leading unit is unpadded, non-leading units are zero-padded to 2 digits.
+   * A math.js Unit value is normalised to seconds first.
    */
-  formatHMS(value, withSeconds) {
-    let seconds;
+  humanTime(value, unitName) {
+    const factors = { hours: 3600, minutes: 60, seconds: 1 };
+    let totalSeconds;
     if (value && typeof value === "object" && typeof value.toNumber === "function") {
-      try { seconds = value.toNumber("seconds"); }
-      catch (e) { seconds = Number(value.valueOf?.() ?? value); }
+      try { totalSeconds = value.toNumber("seconds"); }
+      catch (e) { totalSeconds = Number(value.valueOf?.() ?? value) * (factors[unitName] || 1); }
     } else {
-      seconds = Number(value);
+      totalSeconds = Number(value) * (factors[unitName] || 1);
     }
-    if (!isFinite(seconds)) return String(value);
-    const sign = seconds < 0 ? "-" : "";
-    seconds = Math.abs(seconds);
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.round(seconds % 60);
+    if (!isFinite(totalSeconds)) return String(value);
+    const sign = totalSeconds < 0 ? "-" : "";
+    totalSeconds = Math.abs(totalSeconds);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = Math.round(totalSeconds % 60);
+    // Carry from rounded seconds (59.6 → 60) so we don't render "00min 60sec".
+    let hh = h, mm = m, ss = s;
+    if (ss === 60) { ss = 0; mm += 1; }
+    if (mm === 60) { mm = 0; hh += 1; }
     const pad = (n) => String(n).padStart(2, "0");
-    return withSeconds
-      ? `${sign}${pad(h)}:${pad(m)}:${pad(s)}`
-      : `${sign}${pad(h)}:${pad(m)}`;
+    const isH = unitName === "hours";
+    const isM = unitName === "minutes";
+    const isS = unitName === "seconds";
+    const parts = [];
+    if (hh > 0)                  parts.push(`${hh}h`);
+    if (mm > 0 || isH || isM)    parts.push(`${parts.length ? pad(mm) : mm}min`);
+    if (ss > 0 || isM || isS)    parts.push(`${parts.length ? pad(ss) : ss}sec`);
+    if (parts.length === 0)      parts.push("0sec");
+    return sign + parts.join(" ");
   },
 
   /**
@@ -399,12 +415,11 @@ globalThis.vektor = {
   },
 };
 
-// Register hms() / hm() as math.js functions so the preprocessor can rewrite
-// `1.8h in hh:mm:ss` to `hms(1.8h)` and get a "01:48:00" string back.
+// Register humanTime() as a math.js function so the preprocessor can rewrite
+// `<expr> in hours` to `humanTime(<expr>, 'hours')` and get a "1h 24min" string back.
 try {
   math.import({
-    hms: (v) => globalThis.vektor.formatHMS(v, true),
-    hm:  (v) => globalThis.vektor.formatHMS(v, false),
+    humanTime: (v, unit) => globalThis.vektor.humanTime(v, unit),
   }, { override: true });
 } catch (e) { /* ignore */ }
 

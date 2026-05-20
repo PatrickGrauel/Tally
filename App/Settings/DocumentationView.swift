@@ -211,12 +211,14 @@ struct DocumentationView: View {
             12 min + 15 min                   →  27 minutes
             """)
             Doc_.paragraph("Time format is flexible: `16:30`, `4:30 pm`, `4.30pm`, `4pm`, and 4-digit military `1630` all parse. You can name any IATA / ICAO airport code, any major city, common abbreviations (Z, Zulu, UTC, GMT, EST, PST, CET, JST, HKT, AEST, WITA…), and anything else Apple's geocoder recognizes. Unknown names resolve asynchronously the first time and cache for next time.")
-            Doc_.paragraph("**Duration from a calculation** — any arithmetic expression followed by `in time` is treated as hours and rendered hh:mm:ss. Useful when the result *is* a duration:")
+            Doc_.paragraph("**Duration from a calculation** — pick the input unit explicitly with `in hours`, `in minutes`, or `in seconds`. The result is broken down via base 60 and rendered as `Xh Ymin Zsec`, omitting empty units where it reads cleaner:")
             Doc_.code("""
-            20/60 in time                     →  00:20:00      (20 ÷ 60 = ⅓ h = 20 min)
-            77/55 in time                     →  01:24:00      (fuel ÷ burn = endurance)
-            2.5 in time                       →  02:30:00
-            1.8h in hh:mm:ss                  →  01:48:00      (when the input has a unit)
+            77/55 in hours                    →  1h 24min        (fuel ÷ burn = endurance)
+            20/60 in hours                    →  20min           (h omitted when 0)
+            2.5 in hours                      →  2h 30min
+            816 in minutes                    →  13h 36min 00sec (sum of leg minutes)
+            3725 in seconds                   →  1h 02min 05sec
+            60/60 in seconds                  →  1sec
             """)
         }
     }
@@ -266,7 +268,7 @@ struct DocumentationView: View {
             ete(180, 120)                        // distance, GS  →  hours
             tod(10000, 500, 120)                 // alt to lose, rate fpm, GS
             endurance(50, 10)                    // fuel, burn  →  hours
-            77/55 in time                        // bare division → 01:24:00
+            77/55 in hours                       // bare division → 1h 24min
             """)
             Doc_.paragraph("Type `METAR EDDM` or `TAF KSFO` on a calculator line and the raw report appears in the gutter. The dedicated METAR / TAF tab gives you the decoded version with danger-flagged fields (TS, gusts ≥ 20 kt, vis < 3 SM, ceiling < 1000 ft) and a runway crosswind computer.")
             Doc_.paragraph("The E6B tab has the wind-triangle math, density altitude, runway components, and top-of-descent on separate sub-tabs with live diagrams.")

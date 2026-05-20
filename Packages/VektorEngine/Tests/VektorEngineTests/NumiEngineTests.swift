@@ -379,58 +379,109 @@ final class NumiEngineTests: XCTestCase {
         XCTAssertEqual(r?.value, "1")
     }
 
-    // MARK: - hh:mm:ss formatting
+    // MARK: - <expr> in {hours, minutes, seconds} → humanTime
 
-    func testHmsFromHours() throws {
+    func testHumanTime_hoursExact() throws {
         let engine = try NumiEngine()
-        let r = engine.evaluate("1,8 h in hh:mm:ss").first
+        let r = engine.evaluate("60/60 in hours").first
         XCTAssertEqual(r?.kind, .expression)
-        // 1.8 h = 1h 48m 0s
-        XCTAssertEqual(r?.value, "01:48:00")
+        // 1 h = 1h 0m 0s, in-hours keeps min but drops 0sec
+        XCTAssertEqual(r?.value, "1h 00min")
     }
 
-    func testHmsFromSeconds() throws {
+    func testHumanTime_minutesExact() throws {
         let engine = try NumiEngine()
-        let r = engine.evaluate("3725 seconds in hh:mm:ss").first
-        XCTAssertEqual(r?.value, "01:02:05")
+        let r = engine.evaluate("60/60 in minutes").first
+        // 1 minute = 0h 1m 0s, in-minutes keeps sec
+        XCTAssertEqual(r?.value, "1min 00sec")
     }
 
-    func testHmFromMinutes() throws {
+    func testHumanTime_secondsExact() throws {
         let engine = try NumiEngine()
-        let r = engine.evaluate("125 minutes in hh:mm").first
-        XCTAssertEqual(r?.value, "02:05")
+        let r = engine.evaluate("60/60 in seconds").first
+        // 1 second; no minutes/hours, just sec
+        XCTAssertEqual(r?.value, "1sec")
     }
 
-    // MARK: - <calc> in time → hh:mm:ss (bare-number endurance)
+    func testHumanTime_hoursWithMinutes() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("90/60 in hours").first
+        // 1.5 h = 1h 30min
+        XCTAssertEqual(r?.value, "1h 30min")
+    }
 
-    func testCalcInTimeFuelEndurance() throws {
+    func testHumanTime_minutesWithSeconds() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("90/60 in minutes").first
+        // 1.5 min = 1m 30s
+        XCTAssertEqual(r?.value, "1min 30sec")
+    }
+
+    func testHumanTime_fuelEndurance() throws {
         // Aviation headline: fuel / fuel-flow gives hours-in-the-air.
-        // 77 / 55 = 1.4 h → 01:24:00.
+        // 77 / 55 = 1.4 h → 1h 24min
         let engine = try NumiEngine()
-        let r = engine.evaluate("77/55 in time").first
-        XCTAssertEqual(r?.value, "01:24:00")
+        let r = engine.evaluate("77/55 in hours").first
+        XCTAssertEqual(r?.value, "1h 24min")
     }
 
-    func testCalcInTimePlainNumber() throws {
-        // A bare number must also be treated as hours.
+    func testHumanTime_secondsWithMinutesAndHours() throws {
         let engine = try NumiEngine()
-        let r = engine.evaluate("2.5 in time").first
-        XCTAssertEqual(r?.value, "02:30:00")
+        let r = engine.evaluate("3725 in seconds").first
+        // 3725s = 1h 2min 5s → in-seconds shows m if non-zero, sec always
+        XCTAssertEqual(r?.value, "1h 02min 05sec")
     }
 
-    func testCalcInTimeWithSeconds() throws {
-        // 100 / 55 ≈ 1.8181… h → 1h 49m 5s.
+    func testHumanTime_hoursDropsZeroHour() throws {
         let engine = try NumiEngine()
-        let r = engine.evaluate("100/55 in time").first
-        XCTAssertEqual(r?.value, "01:49:05")
+        let r = engine.evaluate("20/60 in hours").first
+        // 1/3 h = 20min, h omitted because zero
+        XCTAssertEqual(r?.value, "20min")
     }
 
-    func testCalcInTimeIgnoresTimezone() throws {
-        // `Munich time in Tokyo` is a timezone conversion, not endurance.
-        // The new rewriter must not touch lines whose LHS contains letters.
+    func testHumanTime_zeroValue() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("0 in seconds").first
+        XCTAssertEqual(r?.value, "0sec")
+    }
+
+    func testHumanTime_negative() throws {
+        let engine = try NumiEngine()
+        let r = engine.evaluate("-90/60 in minutes").first
+        // -1.5 min = -1m 30s
+        XCTAssertEqual(r?.value, "-1min 30sec")
+    }
+
+    func testHumanTime_prevInMinutes() throws {
+        // The original user bug: a multi-line scratchpad where the first
+        // line sums leg-times in minutes and the second line formats `prev`.
+        let engine = try NumiEngine()
+        let results = engine.evaluate("""
+        60+21+52+31+31+60+24+32+60+28+30+24+30+60+1+56+60+27+59+45+25
+        prev in minutes
+        """)
+        XCTAssertEqual(results.count, 2)
+        // Sum = 816 minutes = 13h 36m 0s
+        XCTAssertEqual(results[1].value, "13h 36min 00sec")
+    }
+
+    func testHumanTime_prevDividedInHours() throws {
+        // Same data, expressed as hours via prev/60.
+        let engine = try NumiEngine()
+        let results = engine.evaluate("""
+        60+21+52+31+31+60+24+32+60+28+30+24+30+60+1+56+60+27+59+45+25
+        prev/60 in hours
+        """)
+        XCTAssertEqual(results.count, 2)
+        XCTAssertEqual(results[1].value, "13h 36min")
+    }
+
+    func testHumanTime_ignoresTimezone() throws {
+        // `Munich time in Tokyo` is a timezone conversion, not a duration.
+        // The rewriter must not touch lines whose LHS contains letters.
         let engine = try NumiEngine()
         let r = engine.evaluate("1800 Munich time in Tokyo").first?.value ?? ""
-        XCTAssertFalse(r.contains("01:48:00"),
+        XCTAssertFalse(r.contains("min") || r.contains("sec"),
                        "Timezone line must not be rewritten as duration: \(r)")
     }
 

@@ -35,7 +35,7 @@ struct NumiPreprocessor {
         // Be conservative: only treat as a label when the LHS looks like a
         // plain English identifier (letters/spaces, NO digits) and the colon
         // is the only one on the line. This avoids eating time expressions
-        // like `3725 seconds in hh:mm:ss` or `2:30 pm Berlin`.
+        // like `3725 seconds in seconds` or `2:30 pm Berlin`.
         let colonCount = line.reduce(0) { $0 + ($1 == ":" ? 1 : 0) }
         if colonCount == 1, let colon = line.firstIndex(of: ":") {
             let lhs = line[line.startIndex..<colon]
@@ -83,11 +83,15 @@ struct NumiPreprocessor {
         s = rewriteScales(s)
         s = rewritePercentages(s)
         s = rewriteTimeUnits(s)
-        s = rewriteCalculationInTime(s)
-        s = rewriteHmsFormat(s)
+        // `prev` must resolve BEFORE `rewriteHumanTime` runs — otherwise a
+        // line like `prev in minutes` has a non-numeric body (just `prev`),
+        // the formatter's numeric-only guard rejects it, and the suffix is
+        // left orphaned. Substituting first means the body becomes `(816)`
+        // and the rewrite proceeds normally.
+        s = rewritePrev(s, previousValues: previousValues)
+        s = rewriteHumanTime(s)
         s = rewriteInchAmbiguity(s)
         s = rewriteConversion(s)
-        s = rewritePrev(s, previousValues: previousValues)
         s = rewriteAggregates(s, previousValues: previousValues)
 
         // If the original line used feet-inches notation AND the user
@@ -448,50 +452,39 @@ struct NumiPreprocessor {
         )
     }
 
-    // MARK: - <calc> in time → hms((calc) h)
+    // MARK: - <calc> in {hours, minutes, seconds} → humanTime(...)
     //
-    // Aviation use-case: `fuel / consumption in time` — the bare arithmetic
-    // result is interpreted as hours and rendered as `hh:mm:ss`. Distinct
-    // from `rewriteHmsFormat` because the body has no time unit; we attach
-    // `h` ourselves so the existing `hms()` JS helper formats it.
+    // Three explicit input-unit directives. The body is plain arithmetic; the
+    // suffix tells the formatter how to interpret it. Output is the
+    // human-readable `Xh Ymin Zsec` form (see `humanTime` in JS).
     //
-    // Guarded by a numeric-only body check so lines like `Munich in time`
-    // (or anything containing letters) fall through untouched, leaving the
-    // timezone / city paths alone.
-    private func rewriteCalculationInTime(_ input: String) -> String {
-        let suffix = #"\s+(?:to|in|as)\s+time\s*$"#
+    //   60/60 in hours    → 1h 00min
+    //   60/60 in minutes  → 1min 00sec
+    //   60/60 in seconds  → 1sec
+    //   prev in minutes   → (after rewritePrev runs) 13h 36min 00sec for prev=816
+    //
+    // Guarded by a numeric-only body check so timezone-style lines like
+    // `1430 Berlin in hours` (which mix letters with the new suffix) fall
+    // through untouched. This also blocks unit-bearing bodies like `1.8h in
+    // hours` — users who want that should drop the unit (`1.8 in hours`).
+    private func rewriteHumanTime(_ input: String) -> String {
+        let suffix = #"\s+(?:to|in|as)\s+(hours?|minutes?|seconds?)\s*$"#
         guard let r = input.range(of: suffix, options: .regularExpression) else {
             return input
         }
+        let matched = input[r].trimmingCharacters(in: .whitespaces)
+        let token = matched.split(separator: " ").last.map(String.init)?.lowercased() ?? ""
+        let unit: String
+        if token.hasPrefix("hour")        { unit = "hours" }
+        else if token.hasPrefix("minute") { unit = "minutes" }
+        else                              { unit = "seconds" }
+
         let body = input[..<r.lowerBound].trimmingCharacters(in: .whitespaces)
         let allowed = CharacterSet(charactersIn: "0123456789.+-*/()% ")
         let hasDigit = body.contains(where: { $0.isNumber })
         let onlyAllowed = body.unicodeScalars.allSatisfy { allowed.contains($0) }
         guard hasDigit, onlyAllowed else { return input }
-        return "hms((\(body)) h)"
-    }
-
-    // MARK: - hh:mm:ss / hms output target
-    //
-    // Numi-style: `1.8h in hh:mm:ss`, `90min as hms`, `3600s in hh:mm`.
-    // Rewrite the suffix to a `hms(...)` call which formats the inner value
-    // as a clock-style duration (the JS side defines `hms`).
-    private func rewriteHmsFormat(_ input: String) -> String {
-        // Use `(?:$|\s)` instead of `\b` because `:` is non-word and `\b`
-        // boundary semantics around `hh:mm:ss` can be flaky across engines.
-        let suffixes: [(String, String)] = [
-            // longest first so we don't match the prefix of a longer one
-            (#"\s+(?:to|in|as)\s+hh:mm:ss(?:$|\s)"#,                  "hms"),
-            (#"\s+(?:to|in|as)\s+hh:mm(?:$|\s)"#,                     "hm"),
-            (#"\s+(?:to|in|as)\s+(?:hms|duration|clock)(?:$|\s)"#,    "hms"),
-        ]
-        for (pattern, fn) in suffixes {
-            if let r = input.range(of: pattern, options: .regularExpression) {
-                let body = input[..<r.lowerBound].trimmingCharacters(in: .whitespaces)
-                return "\(fn)(\(body))"
-            }
-        }
-        return input
+        return "humanTime((\(body)), '\(unit)')"
     }
 
     // MARK: - Time-unit normalisation
@@ -857,6 +850,18 @@ struct NumiPreprocessor {
         // come out in the unit the user just typed.
         let target = explicitUnit ?? Self.trailingUnit(of: previousValues.last)
         guard let target else { return base }
+        // `sum in hours/minutes/seconds` reuses the humanTime formatter so the
+        // aggregate output matches a single-line `<expr> in <unit>`.
+        let lower = target.lowercased()
+        let humanUnit: String? = {
+            if lower.hasPrefix("hour")   { return "hours" }
+            if lower.hasPrefix("minute") { return "minutes" }
+            if lower.hasPrefix("second") { return "seconds" }
+            return nil
+        }()
+        if let humanUnit {
+            return "humanTime((\(base)), '\(humanUnit)')"
+        }
         return "(\(base)) to \(target)"
     }
 
