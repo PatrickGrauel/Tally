@@ -60,6 +60,60 @@ final class BridgeTests: XCTestCase {
     /// "18:00 GMT". Two layers guard the alias now: `resolveSync`
     /// checks the static table first, and `CityResolver.resolve`
     /// refuses to send known aliases to CLGeocoder.
+    // MARK: - Day-delta marker on cross-midnight conversion
+
+    /// Helper: a Date pinned to a fixed instant well inside Sydney's winter
+    /// (AEST, UTC+10) and Fiji's standard time (UTC+12). Picking June avoids
+    /// DST overlap surprises on both sides — the offset stays at +2h.
+    private func fixedJuneDate() -> Date {
+        var comps = DateComponents()
+        comps.year = 2025; comps.month = 6; comps.day = 15; comps.hour = 12
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        return cal.date(from: comps)!
+    }
+
+    func testConvertTimeString_plusOneDayWhenDestRollsOver() {
+        // 23:00 Sydney is 01:00 next day in Fiji (+2h offset). The marker
+        // should call that out so a glance doesn't lose the day. IANA
+        // identifiers avoid relying on CityResolver cache state in tests.
+        let bridge = TimezoneBridge()
+        let out = bridge.convertTimeString("23:00",
+                                           from: "Australia/Sydney",
+                                           to: "Pacific/Fiji",
+                                           on: fixedJuneDate())
+        XCTAssertNotNil(out)
+        XCTAssertTrue(out?.formatted.contains("(+1d)") == true,
+                      "expected +1d marker, got: \(out?.formatted ?? "nil")")
+    }
+
+    func testConvertTimeString_minusOneDayWhenDestIsBehind() {
+        // 02:00 Sydney is 06:00 previous day in Honolulu (Sydney +10,
+        // Honolulu -10 → 20h gap, dest behind by 1 calendar day).
+        let bridge = TimezoneBridge()
+        let out = bridge.convertTimeString("02:00",
+                                           from: "Australia/Sydney",
+                                           to: "Pacific/Honolulu",
+                                           on: fixedJuneDate())
+        XCTAssertNotNil(out)
+        XCTAssertTrue(out?.formatted.contains("(-1d)") == true,
+                      "expected -1d marker, got: \(out?.formatted ?? "nil")")
+    }
+
+    func testConvertTimeString_noMarkerWhenSameDay() {
+        // 12:00 Berlin is 10:00 UTC (CEST in June), same calendar day.
+        // No marker should be appended.
+        let bridge = TimezoneBridge()
+        let out = bridge.convertTimeString("12:00",
+                                           from: "Europe/Berlin",
+                                           to: "UTC",
+                                           on: fixedJuneDate())
+        XCTAssertNotNil(out)
+        let formatted = out?.formatted ?? ""
+        XCTAssertFalse(formatted.contains("d)"),
+                       "expected no day marker, got: \(formatted)")
+    }
+
     func testZuluAlwaysResolvesToUTC() async throws {
         let bridge = TimezoneBridge()
 

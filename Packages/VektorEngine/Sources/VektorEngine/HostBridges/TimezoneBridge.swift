@@ -64,11 +64,41 @@ public struct TimezoneBridge {
         fmt.timeZone = destTZ
         fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "HH:mm zzz"
-        let formatted = fmt.string(from: adjusted)
+        var formatted = fmt.string(from: adjusted)
+
+        // Day delta — destination calendar day relative to source for the
+        // same instant. `23:00 Sydney in Fiji` is `01:00 GMT+12 (+1d)`
+        // because Fiji's calendar has already rolled over. Omitted when
+        // both zones agree on the day.
+        let delta = Self.calendarDayDelta(from: sourceTZ, to: destTZ, at: adjusted)
+        if delta != 0 {
+            let sign = delta > 0 ? "+" : ""
+            formatted += " (\(sign)\(delta)d)"
+        }
+
         let hint = canonicalHint(for: dest, resolved: destResolved)
         return Output(formatted: formatted,
                       canonical: hint,
                       originalCode: destResolved.originalCode)
+    }
+
+    /// Days between the calendar-day of `instant` in `source` and in `dest`.
+    /// Positive when `dest` is later (Sydney→Auckland near midnight),
+    /// negative when earlier (Tokyo→LA crossing the dateline backwards).
+    /// Constructed via UTC-anchored DateComponents so DST and IDL don't
+    /// skew the count.
+    private static func calendarDayDelta(from source: TimeZone,
+                                         to dest: TimeZone,
+                                         at instant: Date) -> Int {
+        var srcCal = Calendar(identifier: .gregorian); srcCal.timeZone = source
+        var dstCal = Calendar(identifier: .gregorian); dstCal.timeZone = dest
+        let srcComps = srcCal.dateComponents([.year, .month, .day], from: instant)
+        let dstComps = dstCal.dateComponents([.year, .month, .day], from: instant)
+        var utcCal = Calendar(identifier: .gregorian)
+        utcCal.timeZone = TimeZone(identifier: "UTC") ?? .current
+        guard let s = utcCal.date(from: srcComps),
+              let d = utcCal.date(from: dstComps) else { return 0 }
+        return utcCal.dateComponents([.day], from: s, to: d).day ?? 0
     }
 
     // MARK: - Resolution (sync-only — async resolution kicks off from engine)
